@@ -286,7 +286,7 @@ It's thread-safe, and MongoDB's documentation says to keep one instance per appl
 
 ---
 
-## 16. Audit database name from configuration (R3) 🔧
+## 16. Audit database name from configuration (R3) ✅
 
 **Problem.** Verified in the container: the audit tables are in `master`. Testcontainers' connection string has no database, so SQL Server's default (`master`) is used.
 

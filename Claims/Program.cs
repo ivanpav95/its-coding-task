@@ -1,5 +1,6 @@
 using Claims.Infrastructure.Auditing;
 using Claims.Infrastructure.Persistence;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
 using System.Runtime.InteropServices;
@@ -29,8 +30,13 @@ builder.Services
         x.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
+var auditConnectionString = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
+{
+    InitialCatalog = builder.Configuration["SqlServer:DatabaseName"]
+}.ConnectionString;
+
 builder.Services.AddDbContext<AuditContext>(options =>
-    options.UseSqlServer(sqlContainer.GetConnectionString()));
+    options.UseSqlServer(auditConnectionString));
 
 builder.Services.AddDbContext<ClaimsContext>(options =>
 {
