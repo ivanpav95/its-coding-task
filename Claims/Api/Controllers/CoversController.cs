@@ -1,8 +1,7 @@
+using Claims.Application.Repositories;
 using Claims.Domain;
 using Claims.Infrastructure.Auditing;
-using Claims.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Claims.Api.Controllers;
 
@@ -10,13 +9,13 @@ namespace Claims.Api.Controllers;
 [Route("[controller]")]
 public class CoversController : ControllerBase
 {
-    private readonly ClaimsContext _claimsContext;
+    private readonly ICoverRepository _covers;
     private readonly ILogger<CoversController> _logger;
     private readonly Auditer _auditer;
 
-    public CoversController(ClaimsContext claimsContext, AuditContext auditContext, ILogger<CoversController> logger)
+    public CoversController(ICoverRepository covers, AuditContext auditContext, ILogger<CoversController> logger)
     {
-        _claimsContext = claimsContext;
+        _covers = covers;
         _logger = logger;
         _auditer = new Auditer(auditContext);
     }
@@ -30,15 +29,14 @@ public class CoversController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Cover>>> GetAsync()
     {
-        var results = await _claimsContext.Covers.ToListAsync();
+        var results = await _covers.GetAllAsync();
         return Ok(results);
     }
 
     [HttpGet("{id}")]
     public async Task<ActionResult<Cover>> GetAsync(string id)
     {
-        var results = await _claimsContext.Covers.ToListAsync();
-        return Ok(results.SingleOrDefault(cover => cover.Id == id));
+        return Ok(await _covers.GetByIdAsync(id));
     }
 
     [HttpPost]
@@ -46,8 +44,7 @@ public class CoversController : ControllerBase
     {
         cover.Id = Guid.NewGuid().ToString();
         cover.Premium = ComputePremium(cover.StartDate, cover.EndDate, cover.Type);
-        _claimsContext.Covers.Add(cover);
-        await _claimsContext.SaveChangesAsync();
+        await _covers.AddAsync(cover);
         _auditer.AuditCover(cover.Id, "POST");
         return Ok(cover);
     }
@@ -56,12 +53,7 @@ public class CoversController : ControllerBase
     public async Task DeleteAsync(string id)
     {
         _auditer.AuditCover(id, "DELETE");
-        var cover = await _claimsContext.Covers.Where(cover => cover.Id == id).SingleOrDefaultAsync();
-        if (cover is not null)
-        {
-            _claimsContext.Covers.Remove(cover);
-            await _claimsContext.SaveChangesAsync();
-        }
+        await _covers.DeleteAsync(id);
     }
 
     private decimal ComputePremium(DateTime startDate, DateTime endDate, CoverType coverType)

@@ -22,7 +22,7 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 **Layering & SOLID (Task 1)**
 
 - Controllers do data access, auditing, premium calculation and ID generation.
-- `ClaimsContext` is defined inside `ClaimsController.cs`.
+- `ClaimsContext` is defined inside `ClaimsController.cs`. ✅ moved to `Infrastructure/Persistence` (step 1).
 - `new Auditer(auditContext)` in constructors: no DI, can't be mocked.
 - Entities used as API contracts: a client can send `Id` or `Premium` (needs request/response DTOs).
 - Nullable warnings on non-nullable `string` properties.
@@ -31,7 +31,7 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 
 - `GET /{id}` for an unknown id returns 204 No Content (ASP.NET Core turns a `null` result into 204) instead of 404.
 - `DELETE` audits before checking the item exists, and always returns 200.
-- `GET /Covers/{id}` loads all covers into memory, then filters.
+- `GET /Covers/{id}` loads all covers into memory, then filters. ✅ `CoverRepository.GetByIdAsync` filters in Mongo (step 2).
 - `POST /Claims` doesn't check that the cover exists.
 - `ComputePremiumAsync` is `async` without `await`; a POST that takes query parameters (see D9).
 - Deleting a cover leaves its claims pointing at a cover that no longer exists (see D8).
@@ -39,7 +39,7 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 **Infrastructure**
 
 - `Program.cs` creates a new `MongoClient` inside the `AddDbContext` lambda, so once per `ClaimsContext` (per request). `MongoClient` holds the connection pool and should be a singleton. ✅ fixed: registered once as `IMongoClient`.
-- `ClaimsContext.Claims` is private with helper methods, `Covers` is public: two styles for the same thing. Goes away with repositories (step 2).
+- `ClaimsContext.Claims` is private with helper methods, `Covers` is public: two styles for the same thing. ✅ `ClaimsContext` is now a plain `DbContext` with two public sets; queries live in the repositories (step 2).
 - Template leftovers (harmless): `1stMigration.Designer.cs` only describes `ClaimAudit` although `Up()` creates both tables; `Claims.sln` lists a `README.md` at the root, but it lives in `docs/`.
 
 **Auditing (Task 3)**

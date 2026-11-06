@@ -1,3 +1,4 @@
+using Claims.Application.Repositories;
 using Claims.Infrastructure.Auditing;
 using Claims.Infrastructure.Persistence;
 using Microsoft.Data.SqlClient;
@@ -44,6 +45,9 @@ builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoContainer.
 
 builder.Services.AddDbContext<ClaimsContext>((services, options) =>
     options.UseMongoDB(services.GetRequiredService<IMongoClient>(), mongoDatabaseName));
+
+builder.Services.AddScoped<ICoverRepository, CoverRepository>();
+builder.Services.AddScoped<IClaimRepository, ClaimRepository>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

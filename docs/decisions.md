@@ -44,7 +44,7 @@ Dependencies point inward: `Api` → `Application` → `Domain`; `Infrastructure
 
 ---
 
-## 3. Small, specific repository interfaces 🔧
+## 3. Small, specific repository interfaces ✅
 
 **Problem.** Services need data access, but unit tests must run without Mongo.
 

@@ -19,23 +19,24 @@ Working rules, code rules and environment notes are in `CLAUDE.md` at the repo r
 
 ## Current state
 
-Commits on the branch (local only, not pushed):
+Done (local only, not pushed; see `git log`):
 
-1. `1c4fc6b` Make audit fields `required` to match the migration snapshot (fixes EF Core 9+ `PendingModelChangesWarning`).
-2. `663f5e0` Task 1 step 1: folders `Api`, `Domain`, `Infrastructure`; namespaces follow folders. No behaviour change.
-3. `193ec7d` These working notes.
+- Audit fields `required` (R2), Task 1 step 1 (folders), working notes and `CLAUDE.md`.
+- Small items: R3 (audit database `ClaimsAudit`), R4 (`.gitattributes`), `MongoClient` singleton.
+- Task 1 step 2: `ICoverRepository`/`IClaimRepository` in `Application/Repositories`, Mongo implementations in `Infrastructure/Persistence`. Controllers use them; behaviour unchanged (still 204 for unknown ids, still `new Auditer(...)`).
 
-Step 1 is verified: build passes (5 nullable warnings in `Claim`/`Cover`/`ClaimsContext`), the app starts, the existing test passes (with the R5 workaround), and the endpoints behave as before.
+Build: 4 nullable warnings left (`Claim`, `Cover`), fixed by DTOs in step 4.
 
-Small open items:
+Notes for the next steps:
 
-- D7–D9 are decided: `DateOnly` for cover dates and `Claim.Created` (step 4), 409 when deleting a cover that still has claims (step 6), `compute` becomes GET (step 6). R5 is deferred; Ivan solves it later.
+- D7–D9 are decided: `DateOnly` for cover dates and `Claim.Created` (step 4), 409 when deleting a cover that still has claims (step 6, uses `IClaimRepository.AnyForCoverAsync`), `compute` becomes GET (step 6). R5 is deferred; Ivan solves it later.
+- Controllers don't pass a `CancellationToken` yet; add it when they are rewritten in step 3.
 
 ## Remaining plan
 
 Decisions behind every step are in `docs/findings.md` (D1–D9, D5.x). Do the steps in this order:
 
-**Task 1: layering (continue)** 2. Repository interfaces in `Application`, Mongo implementations in `Infrastructure/Persistence`. `GetById` must query by id, not load the whole collection. 3. `ClaimService` and `CoverService` in `Application`. Controllers become thin: map HTTP to service calls. 4. Request/response DTOs, so clients can't set `Id` or `Premium`. Revisit D6 (Mongo attributes on domain entities) here. 5. Auditing behind an interface (`IAuditer` or similar) registered in DI, replacing `new Auditer(...)`. 6. HTTP correctness: 404 when not found, 204 on delete, 400 with `ProblemDetails` for validation errors; delete returns 404 for unknown ids; claim creation checks that the cover exists.
+**Task 1: layering (continue)** 2. ✅ Repositories. 3. `ClaimService` and `CoverService` in `Application`. Controllers become thin: map HTTP to service calls. 4. Request/response DTOs, so clients can't set `Id` or `Premium`. Revisit D6 (Mongo attributes on domain entities) here. 5. Auditing behind an interface (`IAuditer` or similar) registered in DI, replacing `new Auditer(...)`. 6. HTTP correctness: 404 when not found, 204 on delete, 400 with `ProblemDetails` for validation errors; delete returns 404 for unknown ids; claim creation checks that the cover exists.
 Also covers README Task 1 "documentation is missing": XML doc comments on the public endpoints (shown in Swagger) and `ProducesResponseType` attributes.
 
 **Task 5: premium (D5.1–D5.3)**

@@ -1,6 +1,6 @@
+using Claims.Application.Repositories;
 using Claims.Domain;
 using Claims.Infrastructure.Auditing;
-using Claims.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Mvc;
 
 
@@ -11,27 +11,27 @@ namespace Claims.Api.Controllers
     public class ClaimsController : ControllerBase
     {
         private readonly ILogger<ClaimsController> _logger;
-        private readonly ClaimsContext _claimsContext;
+        private readonly IClaimRepository _claims;
         private readonly Auditer _auditer;
 
-        public ClaimsController(ILogger<ClaimsController> logger, ClaimsContext claimsContext, AuditContext auditContext)
+        public ClaimsController(ILogger<ClaimsController> logger, IClaimRepository claims, AuditContext auditContext)
         {
             _logger = logger;
-            _claimsContext = claimsContext;
+            _claims = claims;
             _auditer = new Auditer(auditContext);
         }
 
         [HttpGet]
         public async Task<IEnumerable<Claim>> GetAsync()
         {
-            return await _claimsContext.GetClaimsAsync();
+            return await _claims.GetAllAsync();
         }
 
         [HttpPost]
         public async Task<ActionResult> CreateAsync(Claim claim)
         {
             claim.Id = Guid.NewGuid().ToString();
-            await _claimsContext.AddItemAsync(claim);
+            await _claims.AddAsync(claim);
             _auditer.AuditClaim(claim.Id, "POST");
             return Ok(claim);
         }
@@ -40,13 +40,13 @@ namespace Claims.Api.Controllers
         public async Task DeleteAsync(string id)
         {
             _auditer.AuditClaim(id, "DELETE");
-            await _claimsContext.DeleteItemAsync(id);
+            await _claims.DeleteAsync(id);
         }
 
         [HttpGet("{id}")]
-        public async Task<Claim> GetAsync(string id)
+        public async Task<Claim?> GetAsync(string id)
         {
-            return await _claimsContext.GetClaimAsync(id);
+            return await _claims.GetByIdAsync(id);
         }
     }
 }
