@@ -264,7 +264,7 @@ await foreach (var message in reader.ReadAllAsync(ct))
 
 ---
 
-## 15. `MongoClient` is a singleton 🔧
+## 15. `MongoClient` is a singleton ✅
 
 **Problem.** `Program.cs` calls `new MongoClient(...)` inside the `AddDbContext` options lambda. `AddDbContext` registers the context and its options as scoped, so the lambda runs for every new scope: once per HTTP request.
 
@@ -282,7 +282,19 @@ It's thread-safe, and MongoDB's documentation says to keep one instance per appl
 - The template is only cheap because of that registry, a hidden driver detail. If the settings ever differed per request (e.g. a callback configured in the lambda), every request would get a new pool.
 - As a DI singleton the container owns the client and disposes it on shutdown.
 
-**How.** Register `IMongoClient` as a singleton and resolve it in `AddDbContext((sp, options) => options.UseMongoDB(sp.GetRequiredService<IMongoClient>(), databaseName))`. This also removes the round trip `client.GetDatabase(...)` → `database.Client` on the lines below.
+**How.**
+
+```csharp
+builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoContainer.GetConnectionString()));
+
+builder.Services.AddDbContext<ClaimsContext>((services, options) =>
+    options.UseMongoDB(services.GetRequiredService<IMongoClient>(), mongoDatabaseName));
+```
+
+- The singleton is registered with a **factory**, not `AddSingleton(new MongoClient(...))`. The container disposes only objects it created itself, so with a factory it disposes the client on shutdown (`MongoClient` is `IDisposable` since driver 3.0; checked on 3.11.2).
+- The `(services, options)` overload of `AddDbContext` gets the shared client from DI.
+- The database name is read once with `GetRequiredSection`, which fails at startup with a clear message if the setting is missing.
+- This also removes the template's round trip `client.GetDatabase(...)` → `database.Client`.
 
 ---
 

@@ -38,12 +38,12 @@ var auditConnectionString = new SqlConnectionStringBuilder(sqlContainer.GetConne
 builder.Services.AddDbContext<AuditContext>(options =>
     options.UseSqlServer(auditConnectionString));
 
-builder.Services.AddDbContext<ClaimsContext>(options =>
-{
-    var client = new MongoClient(mongoContainer.GetConnectionString());
-    var database = client.GetDatabase(builder.Configuration["MongoDb:DatabaseName"]); // Use a default/test database name
-    options.UseMongoDB(database.Client, database.DatabaseNamespace.DatabaseName);
-});
+var mongoDatabaseName = builder.Configuration.GetRequiredSection("MongoDb:DatabaseName").Value!;
+
+builder.Services.AddSingleton<IMongoClient>(_ => new MongoClient(mongoContainer.GetConnectionString()));
+
+builder.Services.AddDbContext<ClaimsContext>((services, options) =>
+    options.UseMongoDB(services.GetRequiredService<IMongoClient>(), mongoDatabaseName));
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

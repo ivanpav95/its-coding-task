@@ -38,7 +38,7 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 
 **Infrastructure**
 
-- `Program.cs` creates a new `MongoClient` inside the `AddDbContext` lambda, so once per `ClaimsContext` (per request). `MongoClient` holds the connection pool and should be a singleton.
+- `Program.cs` creates a new `MongoClient` inside the `AddDbContext` lambda, so once per `ClaimsContext` (per request). `MongoClient` holds the connection pool and should be a singleton. ✅ fixed: registered once as `IMongoClient`.
 - `ClaimsContext.Claims` is private with helper methods, `Covers` is public: two styles for the same thing. Goes away with repositories (step 2).
 - Template leftovers (harmless): `1stMigration.Designer.cs` only describes `ClaimAudit` although `Up()` creates both tables; `Claims.sln` lists a `README.md` at the root, but it lives in `docs/`.
 
