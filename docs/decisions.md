@@ -313,7 +313,7 @@ var sql = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
 
 ---
 
-## 18. Line endings (R4) 🔧
+## 18. Line endings (R4) ✅
 
 **Problem.** Files showed as modified with no real change: the editor and Git disagreed on CRLF vs LF.
 

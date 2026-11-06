@@ -29,7 +29,6 @@ Step 1 is verified: build passes (5 nullable warnings in `Claim`/`Cover`/`Claims
 
 Small open items:
 
-- Add `.gitattributes` with `* text=auto` (PowerShell: `Set-Content .gitattributes "* text=auto" -Encoding ascii`).
 - Make `MongoClient` a singleton instead of creating one per `ClaimsContext`.
 - D7–D9 are decided: `DateOnly` for cover dates and `Claim.Created` (step 4), 409 when deleting a cover that still has claims (step 6), `compute` becomes GET (step 6). R5 is deferred; Ivan solves it later.
 
