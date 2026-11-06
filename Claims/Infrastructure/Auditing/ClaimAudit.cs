@@ -1,10 +1,10 @@
-﻿namespace Claims.Auditing
+﻿namespace Claims.Infrastructure.Auditing
 {
-    public class CoverAudit
+    public class ClaimAudit
     {
         public int Id { get; set; }
 
-        public required string CoverId { get; set; }
+        public required string ClaimId { get; set; }
 
         public DateTime Created { get; set; }
 

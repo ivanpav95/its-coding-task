@@ -1,5 +1,5 @@
-using Claims.Auditing;
-using Claims.Controllers;
+using Claims.Infrastructure.Auditing;
+using Claims.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
 using System.Runtime.InteropServices;

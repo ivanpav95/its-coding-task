@@ -1,4 +1,4 @@
-﻿namespace Claims.Auditing
+﻿namespace Claims.Infrastructure.Auditing
 {
     public class Auditer
     {
