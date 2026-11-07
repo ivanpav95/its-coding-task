@@ -1,6 +1,6 @@
+using Claims.Application.Auditing;
 using Claims.Application.Repositories;
 using Claims.Domain;
-using Claims.Infrastructure.Auditing;
 using Microsoft.AspNetCore.Mvc;
 
 
@@ -12,13 +12,13 @@ namespace Claims.Api.Controllers
     {
         private readonly ILogger<ClaimsController> _logger;
         private readonly IClaimRepository _claims;
-        private readonly Auditer _auditer;
+        private readonly IAuditer _auditer;
 
-        public ClaimsController(ILogger<ClaimsController> logger, IClaimRepository claims, AuditContext auditContext)
+        public ClaimsController(ILogger<ClaimsController> logger, IClaimRepository claims, IAuditer auditer)
         {
             _logger = logger;
             _claims = claims;
-            _auditer = new Auditer(auditContext);
+            _auditer = auditer;
         }
 
         [HttpGet]

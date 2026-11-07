@@ -42,6 +42,16 @@ Dependencies point inward: `Api` → `Application` → `Domain`; `Infrastructure
 
 **Not used, on purpose.** MediatR (a request + handler + indirection per endpoint, for five endpoints), AutoMapper (see §4), a generic repository (see §3). The README asks for "less code, not more".
 
+**SOLID is a hard rule, not a goal.** The README says "Adhere to the SOLID principles", so every step must keep all five; `CLAUDE.md` lists what each letter means in this codebase. In practice:
+
+| Principle | Where it shows                                                                                                   |
+| --------- | ---------------------------------------------------------------------------------------------------------------- |
+| S         | Controllers: HTTP only. Services: use cases. Calculator and validators: rules. Repositories and auditer: I/O.    |
+| O         | Premium rates in one table; a new cover type or rate is a data change, not a new `if`.                          |
+| L         | Fakes in tests and real implementations honour the same contracts (e.g. `DeleteAsync` → `false` when unknown). |
+| I         | One small interface per need: `ICoverRepository`, `IClaimRepository`, `IAuditer`, `ICoverService`, `IClaimService`. |
+| D         | Every layer boundary is an interface resolved from DI (D10); no `new` of dependencies; no `Infrastructure` types in `Application`/`Domain` in any commit (D11). |
+
 ---
 
 ## 3. Small, specific repository interfaces ✅
@@ -58,6 +68,22 @@ Dependencies point inward: `Api` → `Application` → `Domain`; `Infrastructure
 **Why not a generic `IRepository<T>`?** It exposes operations nobody needs (e.g. update-anything) and hides the real ones behind `Find(predicate)`. Two small interfaces are clearer.
 
 **Bug fixed along the way.** `GET /Covers/{id}` loaded every cover into memory and filtered with `SingleOrDefault`. `GetByIdAsync` queries by id in the database.
+
+---
+
+## 3a. Services behind interfaces (D10) 🔧
+
+**Decision.** `CoverService` and `ClaimService` in `Application/Services` implement `ICoverService` and `IClaimService`. Controllers depend on the interfaces.
+
+**Why.**
+- Controllers can be unit-tested with a fake service, without repositories or databases behind them.
+- Every boundary between layers is an interface, so the dependency inversion rule reads the same everywhere: Api → `I…Service`, Application → `I…Repository` / `IAuditer`.
+
+**Trade-off.** Two interfaces with exactly one implementation each. The alternative was concrete services: their own dependencies are already interfaces, so the services themselves would still be testable. We chose consistency and controller testability over two fewer files.
+
+## 3b. `IAuditer` before the services (D11) ✅
+
+`IAuditer` (plan step 5) is built before the services (step 3). Built in the planned order, the services would have created `new Auditer(auditContext)` themselves, so `Application` would depend on an `Infrastructure` type for one commit. Swapping the order keeps D1 intact in every commit.
 
 ---
 

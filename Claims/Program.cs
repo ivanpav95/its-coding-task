@@ -1,3 +1,4 @@
+using Claims.Application.Auditing;
 using Claims.Application.Repositories;
 using Claims.Infrastructure.Auditing;
 using Claims.Infrastructure.Persistence;
@@ -48,6 +49,7 @@ builder.Services.AddDbContext<ClaimsContext>((services, options) =>
 
 builder.Services.AddScoped<ICoverRepository, CoverRepository>();
 builder.Services.AddScoped<IClaimRepository, ClaimRepository>();
+builder.Services.AddScoped<IAuditer, Auditer>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

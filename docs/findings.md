@@ -23,7 +23,7 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 
 - Controllers do data access, auditing, premium calculation and ID generation.
 - `ClaimsContext` is defined inside `ClaimsController.cs`. ✅ moved to `Infrastructure/Persistence` (step 1).
-- `new Auditer(auditContext)` in constructors: no DI, can't be mocked.
+- `new Auditer(auditContext)` in constructors: no DI, can't be mocked. ✅ `IAuditer` registered in DI (step 5).
 - Entities used as API contracts: a client can send `Id` or `Premium` (needs request/response DTOs).
 - Nullable warnings on non-nullable `string` properties.
 
@@ -80,6 +80,8 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 | D7   | `DateTime` or `DateOnly` for cover dates (R6)                      | Rule: `DateOnly` wherever the time of day isn't needed. So `Cover.StartDate`/`EndDate` and `Claim.Created` become `DateOnly`: no business rule uses a time, the type says "calendar date", it fixes the one-day shift (R6), and D5.1/D5.2 become simple (`end.DayNumber - start.DayNumber + 1`). Audit `Created` stays `DateTime` (UTC): there the time is the point. Cost: the API contract changes (`"2026-12-01"` instead of a timestamp); existing documents would need migrating, which doesn't matter for this task (Testcontainers starts empty) | ✅ (step 4)                 |
 | D8   | Deleting a cover that has claims                                  | Not allowed: `DELETE /Covers/{id}` returns 409 Conflict with `ProblemDetails` while the cover still has claims; delete the claims first. Keeps data consistent without silently deleting claims. Rejected: deleting the claims too (destroys claim history as a side effect) and allowing orphans (today's behaviour). Needs a repository method like "does this cover have claims", which queries by `coverId` | ✅ (step 6)                 |
 | D9   | `POST /Covers/compute` with query parameters                      | Make it `GET /Covers/compute?startDate=…&endDate=…&coverType=…`: it changes nothing and is safe to repeat, so GET is the right verb. Uses the same calculator as `CoverService`                                                                                                                                                                                                                             | ✅ (step 6)                 |
+| D10  | Interfaces for the services?                                      | Yes: `ICoverService` and `IClaimService`, and controllers depend on them. Controllers stay unit-testable with a fake service, and every layer boundary is an interface (DIP applied consistently). Cost: two small interfaces with one implementation each. Alternative considered: concrete services, since their own dependencies are already interfaces | ✅ (step 3)                 |
+| D11  | Order of steps 3 and 5                                            | `IAuditer` (step 5) is done before the services (step 3). Otherwise the services would construct `new Auditer(auditContext)` and `Application` would depend on `Infrastructure` for one commit, breaking D1                                                                                                                                                 | ✅                          |
 
 **Packages checked (2026-11-06, spike outside the repo):** `FluentValidation` 12.2.0 and `Microsoft.Extensions.TimeProvider.Testing` 10.11.0 restore and work on net10.0. The test project runs on xunit.v3 with Microsoft.Testing.Platform (`global.json`).
 

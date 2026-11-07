@@ -24,6 +24,16 @@ Ivan's take-home for Insurance Technology Solutions. The task is in `docs/README
 - No comments that restate the code. XML doc comments on public endpoints are wanted (Swagger).
 - `DateOnly` for calendar dates, UTC `DateTime` for timestamps (D7). Get "now" from the injected `TimeProvider`, never `DateTime.Now`/`UtcNow`.
 
+## SOLID is mandatory
+
+The README says "Adhere to the SOLID principles." Every change must keep all five. Check them before proposing a step, and name any trade-off.
+
+- **S**: one reason to change per class. Controllers map HTTP only; services hold use cases; the premium calculator and validators hold rules; repositories and the auditer do I/O.
+- **O**: extend through data or new types, not by editing `if` chains (e.g. premium rates live in one table).
+- **L**: every implementation honours its interface's contract, so fakes in tests and real classes are interchangeable (e.g. `DeleteAsync` returns `false` for an unknown id in both).
+- **I**: small interfaces per need (`ICoverRepository`, `IClaimRepository`, `IAuditer`, `ICoverService`, `IClaimService`). No interface methods that a caller doesn't use.
+- **D**: depend on interfaces across every layer boundary (D10). Never `new` a dependency inside a class; register it in DI. `Application` and `Domain` never reference `Infrastructure` types, in any commit (D11).
+
 ## Environment
 
 - Windows, .NET SDK 10 (`global.json`), Docker Desktop. `Program.cs` starts SQL Server and MongoDB with Testcontainers on every run, so Docker must be running.

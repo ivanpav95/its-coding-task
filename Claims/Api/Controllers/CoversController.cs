@@ -1,6 +1,6 @@
+using Claims.Application.Auditing;
 using Claims.Application.Repositories;
 using Claims.Domain;
-using Claims.Infrastructure.Auditing;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Claims.Api.Controllers;
@@ -11,13 +11,13 @@ public class CoversController : ControllerBase
 {
     private readonly ICoverRepository _covers;
     private readonly ILogger<CoversController> _logger;
-    private readonly Auditer _auditer;
+    private readonly IAuditer _auditer;
 
-    public CoversController(ICoverRepository covers, AuditContext auditContext, ILogger<CoversController> logger)
+    public CoversController(ICoverRepository covers, IAuditer auditer, ILogger<CoversController> logger)
     {
         _covers = covers;
         _logger = logger;
-        _auditer = new Auditer(auditContext);
+        _auditer = auditer;
     }
 
     [HttpPost("compute")]

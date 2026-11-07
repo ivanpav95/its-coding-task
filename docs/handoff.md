@@ -24,6 +24,7 @@ Done (local only, not pushed; see `git log`):
 - Audit fields `required` (R2), Task 1 step 1 (folders), working notes and `CLAUDE.md`.
 - Small items: R3 (audit database `ClaimsAudit`), R4 (`.gitattributes`), `MongoClient` singleton.
 - Task 1 step 2: `ICoverRepository`/`IClaimRepository` in `Application/Repositories`, Mongo implementations in `Infrastructure/Persistence`. Controllers use them; behaviour unchanged (still 204 for unknown ids, still `new Auditer(...)`).
+- Task 1 step 5 (done before step 3, D11): `IAuditer` in `Application/Auditing`, `Auditer` registered as scoped. Still synchronous until Task 3.
 
 Build: 4 nullable warnings left (`Claim`, `Cover`), fixed by DTOs in step 4.
 
@@ -34,10 +35,16 @@ Notes for the next steps:
 
 ## Remaining plan
 
-Decisions behind every step are in `docs/findings.md` (D1–D9, D5.x). Do the steps in this order:
+Decisions behind every step are in `docs/findings.md` (D1–D11, D5.x). Every step must keep the SOLID rules in `CLAUDE.md`. Do the steps in this order:
 
-**Task 1: layering (continue)** 2. ✅ Repositories. 3. `ClaimService` and `CoverService` in `Application`. Controllers become thin: map HTTP to service calls. 4. Request/response DTOs, so clients can't set `Id` or `Premium`. Revisit D6 (Mongo attributes on domain entities) here. 5. Auditing behind an interface (`IAuditer` or similar) registered in DI, replacing `new Auditer(...)`. 6. HTTP correctness: 404 when not found, 204 on delete, 400 with `ProblemDetails` for validation errors; delete returns 404 for unknown ids; claim creation checks that the cover exists.
-Also covers README Task 1 "documentation is missing": XML doc comments on the public endpoints (shown in Swagger) and `ProducesResponseType` attributes.
+**Task 1: layering.** Step numbers are kept as originally planned (other docs refer to them), but the order changed: step 5 was done before step 3 (D11). Execution order:
+
+1. ✅ Step 1: folders `Api`, `Application`, `Domain`, `Infrastructure`.
+2. ✅ Step 2: repositories (`ICoverRepository`, `IClaimRepository`); `GetById` queries by id.
+3. ✅ Step 5: `IAuditer` in DI, replacing `new Auditer(...)`. Moved forward so the services never depend on `Infrastructure` (D11).
+4. Step 3: `ICoverService`/`IClaimService` with `CoverService`/`ClaimService` in `Application` (D10). Controllers become thin and depend on the interfaces; they pass the request's `CancellationToken`.
+5. Step 4: request/response DTOs, so clients can't set `Id` or `Premium` (R7). `DateOnly` for cover dates and `Claim.Created` (D7). Revisit D6 (Mongo attributes on domain entities).
+6. Step 6: HTTP correctness: 404 when not found, 204 on delete, 400 with `ProblemDetails` for validation errors, 404 on delete of an unknown id, 409 when deleting a cover with claims (D8), claim creation checks that the cover exists, `compute` as GET (D9). Also README Task 1 "documentation is missing": XML doc comments on the public endpoints (Swagger) and `[ProducesResponseType]`.
 
 **Task 5: premium (D5.1–D5.3)**
 
