@@ -5,7 +5,7 @@ using Claims.Domain;
 
 namespace Claims.Application.Services;
 
-public class CoverService(ICoverRepository covers, IAuditer auditer) : ICoverService
+public class CoverService(ICoverRepository covers, IClaimRepository claims, IAuditer auditer) : ICoverService
 {
     public async Task<IReadOnlyList<CoverResponse>> GetAllAsync(CancellationToken cancellationToken = default)
     {
@@ -35,10 +35,20 @@ public class CoverService(ICoverRepository covers, IAuditer auditer) : ICoverSer
         return CoverResponse.From(cover);
     }
 
-    public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default)
+    public async Task<DeleteCoverResult> DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
+        if (await claims.AnyForCoverAsync(id, cancellationToken))
+        {
+            return DeleteCoverResult.HasClaims;
+        }
+
+        if (!await covers.DeleteAsync(id, cancellationToken))
+        {
+            return DeleteCoverResult.NotFound;
+        }
+
         auditer.AuditCover(id, "DELETE");
-        return await covers.DeleteAsync(id, cancellationToken);
+        return DeleteCoverResult.Deleted;
     }
 
     // Template formula, unchanged apart from the DateOnly parameters. Replaced in Task 5.

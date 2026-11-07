@@ -14,6 +14,8 @@ Status: ✅ fixed · 🔧 planned · ❓ open question
 | R5  | `dotnet test` fails with `DirectoryNotFoundException` on this machine | The `'` in the path (`Ivan's PC`) breaks the `Microsoft.AspNetCore.Mvc.Testing` MSBuild target: it writes the content root as an unevaluated `$([System.IO.Path]::GetDirectoryName('...'))` into `MvcTestingAppManifest.json`. Not a code bug; reviewers won't hit it | Locally: set `ASPNETCORE_TEST_CONTENTROOT_CLAIMS` to the `Claims` folder (verified: test passes), or clone to a path without `'` | 🔧 deferred (Ivan solves later); use the env var meanwhile |
 | R6  | A cover sent as starting `2026-12-01T00:00:00` comes back as `2026-11-30T23:00:00Z` | `DateTime` with `Kind = Unspecified` is treated as local time (UTC+1) by the Mongo driver and stored as UTC. The calendar date changes, which breaks D5.1 | See D7. Spike: `DateOnly` round-trips exactly with MongoDB.EntityFrameworkCore 10.0.4 (stored as `2026-12-01T00:00:00Z`) and works in LINQ queries | ✅ D7 (step 4) |
 | R7  | `POST /Covers` and `POST /Claims` without `id` return 400 "The Id field is required" | Non-nullable `string Id` + `[ApiController]` makes `Id` required in the request body, so a client must send an id that is then overwritten | Request DTOs without `Id` (step 4)                                                                                                         | ✅ (step 4)                 |
+| R8  | `dotnet build` warns NU1902/NU1903: `System.Security.Cryptography.Pkcs` 9.0.11 has known moderate and high vulnerabilities | Transitive: `Microsoft.EntityFrameworkCore.SqlServer` 10.0.14 → `Microsoft.Data.SqlClient` 6.1.7 → `System.Security.Cryptography.Pkcs` 9.0.11 (`dotnet nuget why`). Present since the template; hidden earlier because only `warning CS` lines were checked | Pin a patched version with a direct `PackageReference`, or update SqlClient when a fixed version ships. Separate small commit | 🔧 |
+| R9  | `dotnet build` warns xUnit1051 in `ClaimsControllerTests` | xunit.v3 analyzer: async calls in tests should pass `TestContext.Current.CancellationToken` | Fix when the integration test is reworked (Task 4) | 🔧 |
 
 Checked by running the app (2026-11-06): step 1 (folder move) builds, starts with no `PendingModelChangesWarning`, and Mongo writes work on the standalone Testcontainers server (no transaction/replica-set problem). The API listens on `https://localhost:7052`; plain HTTP on 5052 is redirected (307). An audit row is written for `DELETE` of an unknown id, and audit `Created` is local time (UTC+1).
 
@@ -29,12 +31,12 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 
 **HTTP behaviour**
 
-- `GET /{id}` for an unknown id returns 204 No Content (ASP.NET Core turns a `null` result into 204) instead of 404.
-- `DELETE` audits before checking the item exists, and always returns 200.
+- `GET /{id}` for an unknown id returns 204 No Content (ASP.NET Core turns a `null` result into 204) instead of 404. ✅ 404 with ProblemDetails (step 6).
+- `DELETE` audits before checking the item exists, and always returns 200. ✅ audit only after a successful delete; 204 or 404 (step 6).
 - `GET /Covers/{id}` loads all covers into memory, then filters. ✅ `CoverRepository.GetByIdAsync` filters in Mongo (step 2).
-- `POST /Claims` doesn't check that the cover exists.
-- `ComputePremiumAsync` is `async` without `await` (✅ now a plain synchronous action, step 3); a POST that takes query parameters (see D9).
-- Deleting a cover leaves its claims pointing at a cover that no longer exists (see D8).
+- `POST /Claims` doesn't check that the cover exists. ✅ 400 when the cover doesn't exist (D13, step 6).
+- `ComputePremiumAsync` is `async` without `await` (✅ now a plain synchronous action, step 3); a POST that takes query parameters (✅ GET since step 6, D9).
+- Deleting a cover leaves its claims pointing at a cover that no longer exists (see D8). ✅ 409 while it has claims (step 6).
 
 **Infrastructure**
 
@@ -82,6 +84,9 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 | D9   | `POST /Covers/compute` with query parameters                      | Make it `GET /Covers/compute?startDate=…&endDate=…&coverType=…`: it changes nothing and is safe to repeat, so GET is the right verb. Uses the same calculator as `CoverService`                                                                                                                                                                                                                             | ✅ (step 6)                 |
 | D10  | Interfaces for the services?                                      | Yes: `ICoverService` and `IClaimService`, and controllers depend on them. Controllers stay unit-testable with a fake service, and every layer boundary is an interface (DIP applied consistently). Cost: two small interfaces with one implementation each. Alternative considered: concrete services, since their own dependencies are already interfaces | ✅ (step 3)                 |
 | D11  | Order of steps 3 and 5                                            | `IAuditer` (step 5) is done before the services (step 3). Otherwise the services would construct `new Auditer(auditContext)` and `Application` would depend on `Infrastructure` for one commit, breaking D1                                                                                                                                                 | ✅                          |
+| D12  | Status code for a successful POST                                 | 201 Created with a `Location` header (`CreatedAtAction`) and the created resource in the body. REST convention for "a resource was created"; costs one line per endpoint. Rejected: keeping 200 OK                                                                                                                                                     | ✅ (step 6)                 |
+| D13  | Claim for a cover that doesn't exist                              | 400 Bad Request, `ValidationProblemDetails` with the error on `coverId`. The URL `/Claims` exists; a value in the body is wrong. Same status and shape as the Task 2 validation errors, so clients handle one case. Rejected: 404 (says the URL doesn't exist) and 422 (defensible, but a second status for invalid input)                                   | ✅ (step 6)                 |
+| D14  | How services report "not found" / "has claims" / "cover missing" | Result values, not exceptions: `DeleteCoverResult` enum (`Deleted`, `NotFound`, `HasClaims`), `bool` for claim delete, and a small `CreateClaimResult` (`Created` or `CoverNotFound`). The controller maps each outcome to a status code with a `switch`. These are expected outcomes, not failures; exceptions would hide the control flow. Rejected: custom exceptions mapped by an `IExceptionHandler` (less controller code, less explicit flow) | ✅ (step 6)                 |
 
 **Packages checked (2026-11-06, spike outside the repo):** `FluentValidation` 12.2.0 and `Microsoft.Extensions.TimeProvider.Testing` 10.11.0 restore and work on net10.0. The test project runs on xunit.v3 with Microsoft.Testing.Platform (`global.json`).
 

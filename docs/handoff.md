@@ -27,8 +27,9 @@ Done (local only, not pushed; see `git log`):
 - Task 1 step 5 (done before step 3, D11): `IAuditer` in `Application/Auditing`, `Auditer` registered as scoped. Still synchronous until Task 3.
 - Task 1 step 3: `ICoverService`/`IClaimService` and implementations in `Application/Services`; controllers are thin, depend on the interfaces and pass the `CancellationToken`. Premium formula moved unchanged (bugs fixed in Task 5). Behaviour unchanged.
 - Task 1 step 4: request/response records in `Application/Contracts`; `DateOnly` for cover dates and `Claim.Created` (D7); Mongo mapping moved to `ClaimsContext` so Domain has no MongoDB dependency (D6). Premium still the template formula.
+- Task 1 step 6: 404/204/409/201 as decided (D8, D12–D14), `compute` is GET, no audit for operations that didn't happen, XML docs and `[ProducesResponseType]` on every endpoint (Swagger). **Task 1 is complete.**
 
-Build: 0 warnings.
+Build: 0 compiler warnings. Two non-compiler warnings to fix: R8 (vulnerable transitive package) and R9 (xUnit1051, Task 4).
 
 Notes for the next steps:
 
@@ -36,7 +37,7 @@ Notes for the next steps:
 
 ## Remaining plan
 
-Decisions behind every step are in `docs/findings.md` (D1–D11, D5.x). Every step must keep the SOLID rules in `CLAUDE.md`. Do the steps in this order:
+Decisions behind every step are in `docs/findings.md` (D1–D14, D5.x). Every step must keep the SOLID rules in `CLAUDE.md`. Do the steps in this order:
 
 **Task 1: layering.** Step numbers are kept as originally planned (other docs refer to them), but the order changed: step 5 was done before step 3 (D11). Execution order:
 
@@ -45,7 +46,7 @@ Decisions behind every step are in `docs/findings.md` (D1–D11, D5.x). Every st
 3. ✅ Step 5: `IAuditer` in DI, replacing `new Auditer(...)`. Moved forward so the services never depend on `Infrastructure` (D11).
 4. ✅ Step 3: `ICoverService`/`IClaimService` with `CoverService`/`ClaimService` in `Application` (D10). Controllers become thin and depend on the interfaces; they pass the request's `CancellationToken`.
 5. ✅ Step 4: request/response DTOs, so clients can't set `Id` or `Premium` (R7). `DateOnly` for cover dates and `Claim.Created` (D7). Revisit D6 (Mongo attributes on domain entities).
-6. Step 6: HTTP correctness: 404 when not found, 204 on delete, 400 with `ProblemDetails` for validation errors, 404 on delete of an unknown id, 409 when deleting a cover with claims (D8), claim creation checks that the cover exists, `compute` as GET (D9). Also README Task 1 "documentation is missing": XML doc comments on the public endpoints (Swagger) and `[ProducesResponseType]`.
+6. ✅ Step 6: HTTP correctness: 404 when not found, 204 on delete, 404 on delete of an unknown id (and no audit row), 409 when deleting a cover with claims (D8), 201 Created with `Location` on POST (D12), 400 `ValidationProblemDetails` when a claim's cover doesn't exist (D13), outcomes returned as result values, not exceptions (D14), `compute` as GET (D9). Also README Task 1 "documentation is missing": XML doc comments on the public endpoints (Swagger) and `[ProducesResponseType]`.
 
 **Task 5: premium (D5.1–D5.3)**
 

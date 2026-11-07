@@ -128,7 +128,7 @@ Dependencies point inward: `Api` → `Application` → `Domain`; `Infrastructure
 
 ---
 
-## 6. HTTP status codes (Task 1 step 6) 🔧
+## 6. HTTP status codes (Task 1 step 6) ✅
 
 Measured on the running template, and what each request will return:
 
@@ -148,9 +148,38 @@ Measured on the running template, and what each request will return:
 
 **Documentation.** XML doc comments on endpoints plus `[ProducesResponseType]`, so Swagger lists every status code. This covers Task 1's "documentation is missing".
 
+### 6a. POST returns 201 Created (D12)
+
+`CreatedAtAction(nameof(GetById), new { id }, response)` returns 201, the created resource in the body, and a `Location` header pointing at `GET /Covers/{id}`. That's what HTTP defines for "a new resource was created", and a client can follow `Location` without building the URL itself. Cost: one line per POST.
+
+### 6b. A claim for an unknown cover is a 400 (D13)
+
+The request goes to `/Claims`, which exists. What's wrong is a value in the body (`coverId`), so it's a client input error: **400** with `ValidationProblemDetails` and the message on the `coverId` field. That's the same status and JSON shape as the Task 2 validation errors, so a client handles one kind of "your input is wrong".
+
+- Rejected: 404. It means "the resource at this URL doesn't exist", which would be misleading for `POST /Claims`.
+- Rejected: 422 Unprocessable Content. Defensible for "well-formed but semantically wrong", but it would give clients two status codes for invalid input.
+
+### 6c. Services return result values, not exceptions (D14)
+
+Some operations have more than one expected outcome:
+
+| Operation         | Outcomes                        | Returned as                                  | HTTP          |
+| ----------------- | ------------------------------- | -------------------------------------------- | ------------- |
+| Delete a cover    | deleted, not found, has claims  | `DeleteCoverResult` enum                     | 204, 404, 409 |
+| Delete a claim    | deleted, not found              | `bool`                                       | 204, 404      |
+| Create a claim    | created, cover doesn't exist    | `CreateClaimResult` (`Created` / `CoverNotFound`) | 201, 400 |
+
+The controller maps each outcome with a `switch`, so every status code is visible in one place.
+
+**Why not exceptions.** "Not found" and "has claims" are normal business outcomes, not failures. Exceptions for them hide the control flow (a reader can't see from the service signature what can come back), and they're slow. Exceptions stay for real failures, e.g. the database being down.
+
+**Rejected.** Custom exceptions (`NotFoundException`, `ConflictException`) mapped to status codes by one `IExceptionHandler`. Less code in controllers, but the flow becomes implicit.
+
+**Why not a generic `Result<T>`.** One small type per operation names its real outcomes; a generic result type is a mini-framework for three call sites.
+
 ---
 
-## 7. A cover with claims cannot be deleted (D8) 🔧
+## 7. A cover with claims cannot be deleted (D8) ✅
 
 **Problem.** Deleting a cover left its claims pointing at a cover that no longer exists.
 
@@ -166,7 +195,7 @@ Measured on the running template, and what each request will return:
 
 ---
 
-## 8. Premium preview is a GET (D9) 🔧
+## 8. Premium preview is a GET (D9) ✅
 
 **Decision.** `GET /Covers/compute?startDate=…&endDate=…&coverType=…` instead of POST.
 

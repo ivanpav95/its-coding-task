@@ -5,7 +5,7 @@ using Claims.Domain;
 
 namespace Claims.Application.Services;
 
-public class ClaimService(IClaimRepository claims, IAuditer auditer) : IClaimService
+public class ClaimService(IClaimRepository claims, ICoverRepository covers, IAuditer auditer) : IClaimService
 {
     public async Task<IReadOnlyList<ClaimResponse>> GetAllAsync(CancellationToken cancellationToken = default)
     {
@@ -19,8 +19,14 @@ public class ClaimService(IClaimRepository claims, IAuditer auditer) : IClaimSer
         return claim is null ? null : ClaimResponse.From(claim);
     }
 
-    public async Task<ClaimResponse> CreateAsync(CreateClaimRequest request, CancellationToken cancellationToken = default)
+    public async Task<CreateClaimResult> CreateAsync(CreateClaimRequest request, CancellationToken cancellationToken = default)
     {
+        var cover = await covers.GetByIdAsync(request.CoverId, cancellationToken);
+        if (cover is null)
+        {
+            return new CreateClaimResult.CoverNotFound(request.CoverId);
+        }
+
         var claim = new Claim
         {
             Id = Guid.NewGuid().ToString(),
@@ -33,12 +39,17 @@ public class ClaimService(IClaimRepository claims, IAuditer auditer) : IClaimSer
 
         await claims.AddAsync(claim, cancellationToken);
         auditer.AuditClaim(claim.Id, "POST");
-        return ClaimResponse.From(claim);
+        return new CreateClaimResult.Created(ClaimResponse.From(claim));
     }
 
     public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default)
     {
+        if (!await claims.DeleteAsync(id, cancellationToken))
+        {
+            return false;
+        }
+
         auditer.AuditClaim(id, "DELETE");
-        return await claims.DeleteAsync(id, cancellationToken);
+        return true;
     }
 }
