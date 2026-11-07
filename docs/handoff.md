@@ -28,6 +28,9 @@ Done (local only, not pushed; see `git log`):
 - Task 1 step 3: `ICoverService`/`IClaimService` and implementations in `Application/Services`; controllers are thin, depend on the interfaces and pass the `CancellationToken`. Premium formula moved unchanged (bugs fixed in Task 5). Behaviour unchanged.
 - Task 1 step 4: request/response records in `Application/Contracts`; `DateOnly` for cover dates and `Claim.Created` (D7); Mongo mapping moved to `ClaimsContext` so Domain has no MongoDB dependency (D6). Premium still the template formula.
 - Task 1 step 6: 404/204/409/201 as decided (D8, D12–D14), `compute` is GET, no audit for operations that didn't happen, XML docs and `[ProducesResponseType]` on every endpoint (Swagger). **Task 1 is complete.**
+- Task 5: `PremiumCalculator` in `Domain` replaces the template formula (P1–P3 fixed); new `Claims.UnitTests` project with 21 spec tests (D15).
+
+**Known gap until Task 2:** an end date before the start date now makes the calculator throw, so `POST /Covers` and `GET /Covers/compute` return 500 for that input (the template silently stored premium 0). Task 2 validation turns it into a 400.
 
 Build: 0 compiler warnings, no vulnerable packages (R8 fixed). One analyzer warning left: R9 (xUnit1051, fixed in Task 4).
 
@@ -48,7 +51,7 @@ Decisions behind every step are in `docs/findings.md` (D1–D14, D5.x). Every st
 5. ✅ Step 4: request/response DTOs, so clients can't set `Id` or `Premium` (R7). `DateOnly` for cover dates and `Claim.Created` (D7). Revisit D6 (Mongo attributes on domain entities).
 6. ✅ Step 6: HTTP correctness: 404 when not found, 204 on delete, 404 on delete of an unknown id (and no audit row), 409 when deleting a cover with claims (D8), 201 Created with `Location` on POST (D12), 400 `ValidationProblemDetails` when a claim's cover doesn't exist (D13), outcomes returned as result values, not exceptions (D14), `compute` as GET (D9). Also README Task 1 "documentation is missing": XML doc comments on the public endpoints (Swagger) and `[ProducesResponseType]`.
 
-**Task 5: premium (D5.1–D5.3)**
+**Task 5: premium (D5.1–D5.3)** ✅ done: `Domain/PremiumCalculator`, 21 unit tests in `Claims.UnitTests` (D15, D16).
 
 - Pure calculator in `Domain`, injected or static, used by `CoverService` and the `compute` endpoint.
 - Days are calendar dates, end date inclusive. Day rate 1250 × multiplier (Yacht 1.1, PassengerShip 1.2, Tanker 1.5, others 1.3).

@@ -37,7 +37,7 @@ The README says "Adhere to the SOLID principles." Every change must keep all fiv
 ## Environment
 
 - Windows, .NET SDK 10 (`global.json`), Docker Desktop. `Program.cs` starts SQL Server and MongoDB with Testcontainers on every run, so Docker must be running.
-- Tests run on xunit.v3 with Microsoft.Testing.Platform.
+- Tests run on xunit.v3 with Microsoft.Testing.Platform. `Claims.UnitTests` needs no Docker and runs in seconds: `dotnet test --project Claims.UnitTests`. `Claims.Tests` holds the integration test, which starts the real app and its containers.
 - The repo path contains `'` (`Ivan's PC`), which breaks `WebApplicationFactory` (R5). Until that's fixed, run tests with the content root set:
 
   ```bash

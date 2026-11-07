@@ -231,7 +231,7 @@ The controller maps each outcome with a `switch`, so every status code is visibl
 
 ---
 
-## 11. Premium calculation (Task 5, D5.3) 🔧
+## 11. Premium calculation (Task 5, D5.3) ✅
 
 **Bugs in the template.**
 - **P1.** The `if`s don't exclude each other, so one day is charged up to three times (days 1–30 three times, days 31–180 twice).
@@ -267,6 +267,15 @@ Example, Yacht, 200 days: 30 × 1,375 + 150 × 1,306.25 + 20 × 1,265 = **262,48
 **No rounding needed.** Every day rate has at most two decimals and the band counts are integers, so `decimal` totals are exact.
 
 **Static or injected.** The calculator has no dependencies, so a static pure function is honest and easy to test. It would become an injected service only if rates came from configuration or a database.
+
+**As built.** `Domain/PremiumCalculator.cs`. `RatesFor(coverType)` is the one table of rates; the "additional" reading is written literally (`0.05m + 0.03m`, `0.02m + 0.01m`), so D5.3 is visible in the code and a compounded reading would change one line in `Calculate`. An end date before the start date throws `ArgumentOutOfRangeException`: the calculator never silently returns 0 for an impossible period. `CoverService` (stored premium) and `GET /Covers/compute` (preview) both call it, so the two can't disagree.
+
+**Tests** (`Claims.UnitTests/PremiumCalculatorTests.cs`, 21 cases, about 1 second, no Docker; D15):
+- the day rate in each band for every cover type, measured as the price of one extra day at the boundaries (day 1, 30, 31, 180, 181, 366);
+- Yacht totals for 10, 100, 200 and 366 days, and a Tanker total for 200 days, each with its derivation next to the number;
+- start = end is one day; a full leap-year cover (2027-03-01 → 2028-02-29) charges 366 days; end before start is rejected.
+
+Each expected value is derived from the README by hand, never from running the code.
 
 ---
 

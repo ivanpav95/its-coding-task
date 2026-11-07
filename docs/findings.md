@@ -59,10 +59,10 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 
 **Premium (Task 5)**
 
-- P1: the `if`s don't exclude each other, so one day is added up to 3 times (days 0–29: three times, days 30–179: twice). Should be one rate per day, by band.
-- P2: the loop stops at `i < 365`, so a 366th day (leap year, allowed by D5.2) would be free.
-- P3: day count uses `(end - start).TotalDays` (a double, end exclusive, includes time of day); must follow D5.1 (calendar dates, end inclusive).
-- Readability: `if` chain for the type multiplier, magic numbers, loop over days instead of computing each band.
+- P1: the `if`s don't exclude each other, so one day is added up to 3 times (days 0–29: three times, days 30–179: twice). Should be one rate per day, by band. ✅
+- P2: the loop stops at `i < 365`, so a 366th day (leap year, allowed by D5.2) would be free. ✅
+- P3: day count uses `(end - start).TotalDays` (a double, end exclusive, includes time of day); must follow D5.1 (calendar dates, end inclusive). ✅
+- Readability: `if` chain for the type multiplier, magic numbers, loop over days instead of computing each band. ✅ `Domain/PremiumCalculator`: one rate table, per-band arithmetic (Task 5).
 - Yacht, end date exclusive as in the template: 10 days → template 39,462.50, correct 13,750.00; 100 days → 298,375.00 vs 132,687.50; 200 days → 529,375.00 vs 262,487.50. The 39,462.50 was confirmed against the running `compute` endpoint.
 - No rounding needed: every day rate has at most 2 decimals (Yacht 1375 / 1306.25 / 1265; PassengerShip 1500 / 1470 / 1455; Tanker 1875 / 1837.50 / 1818.75; others 1625 / 1592.50 / 1576.25), so totals are exact in `decimal`.
 
@@ -87,6 +87,8 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 | D12  | Status code for a successful POST                                 | 201 Created with a `Location` header (`CreatedAtAction`) and the created resource in the body. REST convention for "a resource was created"; costs one line per endpoint. Rejected: keeping 200 OK                                                                                                                                                     | ✅ (step 6)                 |
 | D13  | Claim for a cover that doesn't exist                              | 400 Bad Request, `ValidationProblemDetails` with the error on `coverId`. The URL `/Claims` exists; a value in the body is wrong. Same status and shape as the Task 2 validation errors, so clients handle one case. Rejected: 404 (says the URL doesn't exist) and 422 (defensible, but a second status for invalid input)                                   | ✅ (step 6)                 |
 | D14  | How services report "not found" / "has claims" / "cover missing" | Result values, not exceptions: `DeleteCoverResult` enum (`Deleted`, `NotFound`, `HasClaims`), `bool` for claim delete, and a small `CreateClaimResult` (`Created` or `CoverNotFound`). The controller maps each outcome to a status code with a `switch`. These are expected outcomes, not failures; exceptions would hide the control flow. Rejected: custom exceptions mapped by an `IExceptionHandler` (less controller code, less explicit flow) | ✅ (step 6)                 |
+| D15  | Where unit tests live                                             | New project `Claims.UnitTests`, referencing only `Claims`: no Docker, no `WebApplicationFactory`, runs in about a second on any machine. `Claims.Tests` stays the integration-test project (rename to `Claims.IntegrationTests` in Task 4). Rejected: one project for both (every `dotnet test` would start SQL Server and Mongo) | ✅ (Task 5)                 |
+| D16  | Committing "test-first"                                           | Tests and fix in one commit, so every commit on the branch builds and passes. The failing run against the template formula isn't recorded: it can be reproduced at any time by pointing the tests at the old formula. Rejected: a separate commit with failing tests (shows TDD order in `git log`, but leaves a red commit) | ✅ (Task 5)                 |
 
 **Packages checked (2026-11-06, spike outside the repo):** `FluentValidation` 12.2.0 and `Microsoft.Extensions.TimeProvider.Testing` 10.11.0 restore and work on net10.0. The test project runs on xunit.v3 with Microsoft.Testing.Platform (`global.json`).
 
