@@ -146,7 +146,7 @@ Measured on the running template, and what each request will return:
 
 **Why 404 on DELETE of an unknown id.** DELETE is idempotent in its *effect* (the resource is gone either way), not in its response code. 404 tells a client that it used a wrong id. Returning 204 would also be valid; we chose to surface the mistake.
 
-**Documentation.** XML doc comments on endpoints plus `[ProducesResponseType]`, so Swagger lists every status code. This covers Task 1's "documentation is missing".
+**Documentation.** XML doc comments on endpoints plus `[ProducesResponseType]`, so Swagger lists every status code. Each `[ProducesResponseType]` also names the body type and media type (D28, §21). This covers Task 1's "documentation is missing".
 
 ### 6a. POST returns 201 Created (D12)
 
@@ -457,7 +457,7 @@ var sql = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
 
 ---
 
-## 21. Tests (Task 4) 🔧 4c
+## 21. Tests (Task 4) ✅
 
 **Two projects (D15, 4a).** `Claims.UnitTests` runs in about a second with no Docker; `Claims.IntegrationTests` starts the real app with its SQL Server and MongoDB containers. The names say what each one needs.
 
@@ -471,3 +471,17 @@ var sql = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
 **What the service tests prove.** Every outcome of every use case, and the side effects that go with it: a valid cover is stored with the premium from the README (10 Yacht days = 13,750) and audited once; anything rejected (invalid input, unknown cover, a claim outside the period, a cover that still has claims, an unknown id) stores nothing and audits nothing; a claim on the first and last day of the cover is accepted, the day before and after is not. Checked by breaking the end-date check (`>` → `>=`): the boundary test fails.
 
 **No controller unit tests (D27).** Controllers only map results to status codes. The integration tests (4c) check exactly that through routing, model binding, JSON and `ProblemDetails`, which a controller unit test would skip.
+
+**Integration tests (4c).**
+- `ClaimsApiFactory` is a `WebApplicationFactory<Program>` shared by every test class through an xUnit collection fixture. `Program.cs` starts both containers per factory, so one factory means one start (about 20 s) instead of one per test.
+- `ConfigureTestServices` replaces `TimeProvider` with a `FakeTimeProvider` fixed at 2030-01-10 12:00 UTC. Dates in the tests never depend on when they run, and the audit timestamps can be compared exactly.
+- Each test creates its own cover and claim, so the tests don't depend on order or on each other's data.
+- What they check, through routing, model binding, JSON and `ProblemDetails`: a created cover can be read back from its `Location` header with the README premium; 400 problems for an invalid cover and for a claim on an unknown cover, with the error on the right field; the delete flow 409 → 204 → 204 → 404; `compute` as a GET; a created claim appears in `GET /Claims` (the template's TODO); 404 for an unknown claim.
+- `AuditingTests` is the end-to-end check for `AuditWriter`: after POST and DELETE of a cover and a claim, the four rows appear in SQL Server with the fixed timestamp. Audits are written in the background, so it polls a fresh `AuditContext` every 100 ms for up to 5 s instead of sleeping a fixed time.
+- Not covered: the drain on graceful shutdown. The containers' lifetime is tied to `Program.cs`, so checking rows after the host stopped would need extra plumbing.
+
+**Found by these tests: error responses had the wrong media type (D28).**
+- `[Produces("application/json")]` was added in Task 1 step 6 to tidy Swagger. It's not documentation: it's a result filter that overwrites the content type of every `ObjectResult`, including `ProblemDetails`. Errors went out as `application/json` instead of `application/problem+json` (RFC 9457). The body was a correct `ProblemDetails`; only the label was wrong, so clients that recognise errors by media type (generated SDKs, gateways) would miss them.
+- Fix: the attribute is removed, and every `[ProducesResponseType]` names its body type and media type, e.g. `[ProducesResponseType<ProblemDetails>(404, MediaTypeNames.Application.ProblemJson)]`. Those only feed the OpenAPI document; the runtime uses the framework defaults, which were right all along.
+- Verified: Swagger lists `application/json` for every 2xx and `application/problem+json` with `ProblemDetails`/`ValidationProblemDetails` for every 4xx; the running app sends the same.
+- Rejected: only removing the attribute. Correct responses, but Swagger would list `text/plain, application/json, text/json` for every response, which doesn't describe what is sent.

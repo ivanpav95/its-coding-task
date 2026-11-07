@@ -2,13 +2,13 @@ using Claims.Application.Contracts;
 using Claims.Application.Services;
 using Claims.Domain;
 using Microsoft.AspNetCore.Mvc;
+using System.Net.Mime;
 
 namespace Claims.Api.Controllers;
 
 /// <summary>Insurance covers: the insured object, its insurance period and premium.</summary>
 [ApiController]
 [Route("[controller]")]
-[Produces("application/json")]
 public class CoversController(ICoverService coverService) : ControllerBase
 {
     /// <summary>Calculates the premium for a cover without creating it.</summary>
@@ -19,8 +19,8 @@ public class CoversController(ICoverService coverService) : ControllerBase
     /// <param name="cancellationToken">Cancelled when the client disconnects.</param>
     /// <response code="400">The insurance period is invalid.</response>
     [HttpGet("compute")]
-    [ProducesResponseType<decimal>(StatusCodes.Status200OK)]
-    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<decimal>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
     public async Task<ActionResult<decimal>> ComputePremium(
         DateOnly startDate, DateOnly endDate, CoverType coverType, CancellationToken cancellationToken)
     {
@@ -35,7 +35,7 @@ public class CoversController(ICoverService coverService) : ControllerBase
 
     /// <summary>Lists all covers.</summary>
     [HttpGet]
-    [ProducesResponseType<IReadOnlyList<CoverResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<IReadOnlyList<CoverResponse>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     public async Task<ActionResult<IReadOnlyList<CoverResponse>>> GetAll(CancellationToken cancellationToken)
     {
         return Ok(await coverService.GetAllAsync(cancellationToken));
@@ -44,8 +44,8 @@ public class CoversController(ICoverService coverService) : ControllerBase
     /// <summary>Gets one cover.</summary>
     /// <response code="404">No cover with this id exists.</response>
     [HttpGet("{id}")]
-    [ProducesResponseType<CoverResponse>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<CoverResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     public async Task<ActionResult<CoverResponse>> GetById(string id, CancellationToken cancellationToken)
     {
         var cover = await coverService.GetByIdAsync(id, cancellationToken);
@@ -60,8 +60,8 @@ public class CoversController(ICoverService coverService) : ControllerBase
     /// <response code="201">The cover was created; <c>Location</c> points to it.</response>
     /// <response code="400">The request is invalid.</response>
     [HttpPost]
-    [ProducesResponseType<CoverResponse>(StatusCodes.Status201Created)]
-    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<CoverResponse>(StatusCodes.Status201Created, MediaTypeNames.Application.Json)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
     public async Task<ActionResult<CoverResponse>> Create(CreateCoverRequest request, CancellationToken cancellationToken)
     {
         return await coverService.CreateAsync(request, cancellationToken) switch
@@ -79,8 +79,8 @@ public class CoversController(ICoverService coverService) : ControllerBase
     /// <response code="409">The cover still has claims; delete them first.</response>
     [HttpDelete("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status409Conflict, MediaTypeNames.Application.ProblemJson)]
     public async Task<IActionResult> Delete(string id, CancellationToken cancellationToken)
     {
         return await coverService.DeleteAsync(id, cancellationToken) switch

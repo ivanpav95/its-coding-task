@@ -1,18 +1,18 @@
 using Claims.Application.Contracts;
 using Claims.Application.Services;
 using Microsoft.AspNetCore.Mvc;
+using System.Net.Mime;
 
 namespace Claims.Api.Controllers;
 
 /// <summary>Insurance claims, each linked to a cover.</summary>
 [ApiController]
 [Route("[controller]")]
-[Produces("application/json")]
 public class ClaimsController(IClaimService claimService) : ControllerBase
 {
     /// <summary>Lists all claims.</summary>
     [HttpGet]
-    [ProducesResponseType<IReadOnlyList<ClaimResponse>>(StatusCodes.Status200OK)]
+    [ProducesResponseType<IReadOnlyList<ClaimResponse>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
     public async Task<ActionResult<IReadOnlyList<ClaimResponse>>> GetAll(CancellationToken cancellationToken)
     {
         return Ok(await claimService.GetAllAsync(cancellationToken));
@@ -21,8 +21,8 @@ public class ClaimsController(IClaimService claimService) : ControllerBase
     /// <summary>Gets one claim.</summary>
     /// <response code="404">No claim with this id exists.</response>
     [HttpGet("{id}")]
-    [ProducesResponseType<ClaimResponse>(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ClaimResponse>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     public async Task<ActionResult<ClaimResponse>> GetById(string id, CancellationToken cancellationToken)
     {
         var claim = await claimService.GetByIdAsync(id, cancellationToken);
@@ -37,8 +37,8 @@ public class ClaimsController(IClaimService claimService) : ControllerBase
     /// </remarks>
     /// <response code="400">The request is invalid, the cover doesn't exist, or the date is outside the cover period.</response>
     [HttpPost]
-    [ProducesResponseType<ClaimResponse>(StatusCodes.Status201Created)]
-    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ClaimResponse>(StatusCodes.Status201Created, MediaTypeNames.Application.Json)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
     public async Task<ActionResult<ClaimResponse>> Create(CreateClaimRequest request, CancellationToken cancellationToken)
     {
         return await claimService.CreateAsync(request, cancellationToken) switch
@@ -55,7 +55,7 @@ public class ClaimsController(IClaimService claimService) : ControllerBase
     /// <response code="404">No claim with this id exists.</response>
     [HttpDelete("{id}")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType<ProblemDetails>(StatusCodes.Status404NotFound, MediaTypeNames.Application.ProblemJson)]
     public async Task<IActionResult> Delete(string id, CancellationToken cancellationToken)
     {
         return await claimService.DeleteAsync(id, cancellationToken) ? NoContent() : NotFound();

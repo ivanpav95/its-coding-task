@@ -33,6 +33,7 @@ Done (local only, not pushed; see `git log`):
 - Task 3: `ChannelAuditer` (singleton `IAuditer`) queues `AuditMessage`s on a bounded channel; `AuditWriter` (`BackgroundService`) saves them, one scope per message (D4, D21–D25). The old `Auditer` is deleted. 3 unit tests.
 - Task 4a: `Claims.Tests` renamed to `Claims.IntegrationTests`; R9 fixed.
 - Task 4b: `CoverServiceTests` (7) and `ClaimServiceTests` (7) with hand-written fakes (D26). `Claims.UnitTests` has 56 tests.
+- Task 4c: 8 integration tests in `Claims.IntegrationTests` on one shared app start with a fixed clock; error responses now `application/problem+json` and Swagger lists exact media types (D28). **Task 4 is complete.** 64 tests in total.
 
 Build: 0 warnings, no vulnerable packages (R8 fixed).
 
@@ -77,7 +78,7 @@ Decisions behind every step are in `docs/findings.md` (D1–D14, D5.x). Every st
 
 - ✅ 4a: rename to `Claims.IntegrationTests`, fix R9.
 - ✅ 4b: service unit tests with hand-written fakes and real validators (D26); no controller unit tests (D27).
-- 4c: integration tests on the real app: one shared `WebApplicationFactory` (collection fixture), `FakeTimeProvider` via `ConfigureTestServices`; cover round trip (201 + `Location` → GET), unknown cover → 400 on `CoverId`, delete flow 409 → 204 → 204 → 404, `GET /Claims` contains the created claim, audit rows appear in SQL Server (poll up to 5 s). Not covered: the shutdown drain.
+- ✅ 4c: integration tests on the real app: one shared `WebApplicationFactory` (collection fixture), `FakeTimeProvider` via `ConfigureTestServices`; cover round trip (201 + `Location` → GET), unknown cover → 400 on `CoverId`, delete flow 409 → 204 → 204 → 404, `GET /Claims` contains the created claim, audit rows appear in SQL Server (poll up to 5 s). Not covered: the shutdown drain. Found and fixed: error responses had the wrong media type (D28).
 
 **Finish**
 
