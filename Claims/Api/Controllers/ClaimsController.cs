@@ -1,52 +1,34 @@
-using Claims.Application.Auditing;
-using Claims.Application.Repositories;
+using Claims.Application.Services;
 using Claims.Domain;
 using Microsoft.AspNetCore.Mvc;
 
+namespace Claims.Api.Controllers;
 
-namespace Claims.Api.Controllers
+[ApiController]
+[Route("[controller]")]
+public class ClaimsController(IClaimService claimService) : ControllerBase
 {
-    [ApiController]
-    [Route("[controller]")]
-    public class ClaimsController : ControllerBase
+    [HttpGet]
+    public async Task<IEnumerable<Claim>> GetAsync(CancellationToken cancellationToken)
     {
-        private readonly ILogger<ClaimsController> _logger;
-        private readonly IClaimRepository _claims;
-        private readonly IAuditer _auditer;
+        return await claimService.GetAllAsync(cancellationToken);
+    }
 
-        public ClaimsController(ILogger<ClaimsController> logger, IClaimRepository claims, IAuditer auditer)
-        {
-            _logger = logger;
-            _claims = claims;
-            _auditer = auditer;
-        }
+    [HttpPost]
+    public async Task<ActionResult> CreateAsync(Claim claim, CancellationToken cancellationToken)
+    {
+        return Ok(await claimService.CreateAsync(claim, cancellationToken));
+    }
 
-        [HttpGet]
-        public async Task<IEnumerable<Claim>> GetAsync()
-        {
-            return await _claims.GetAllAsync();
-        }
+    [HttpDelete("{id}")]
+    public async Task DeleteAsync(string id, CancellationToken cancellationToken)
+    {
+        await claimService.DeleteAsync(id, cancellationToken);
+    }
 
-        [HttpPost]
-        public async Task<ActionResult> CreateAsync(Claim claim)
-        {
-            claim.Id = Guid.NewGuid().ToString();
-            await _claims.AddAsync(claim);
-            _auditer.AuditClaim(claim.Id, "POST");
-            return Ok(claim);
-        }
-
-        [HttpDelete("{id}")]
-        public async Task DeleteAsync(string id)
-        {
-            _auditer.AuditClaim(id, "DELETE");
-            await _claims.DeleteAsync(id);
-        }
-
-        [HttpGet("{id}")]
-        public async Task<Claim?> GetAsync(string id)
-        {
-            return await _claims.GetByIdAsync(id);
-        }
+    [HttpGet("{id}")]
+    public async Task<Claim?> GetAsync(string id, CancellationToken cancellationToken)
+    {
+        return await claimService.GetByIdAsync(id, cancellationToken);
     }
 }

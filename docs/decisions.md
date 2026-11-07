@@ -71,7 +71,7 @@ Dependencies point inward: `Api` → `Application` → `Domain`; `Infrastructure
 
 ---
 
-## 3a. Services behind interfaces (D10) 🔧
+## 3a. Services behind interfaces (D10) ✅
 
 **Decision.** `CoverService` and `ClaimService` in `Application/Services` implement `ICoverService` and `IClaimService`. Controllers depend on the interfaces.
 

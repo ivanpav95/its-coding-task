@@ -21,7 +21,7 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 
 **Layering & SOLID (Task 1)**
 
-- Controllers do data access, auditing, premium calculation and ID generation.
+- Controllers do data access, auditing, premium calculation and ID generation. ✅ Controllers now only map HTTP; the work is in `CoverService`/`ClaimService` (step 3). The premium formula moved unchanged and leaves for `Domain` in Task 5.
 - `ClaimsContext` is defined inside `ClaimsController.cs`. ✅ moved to `Infrastructure/Persistence` (step 1).
 - `new Auditer(auditContext)` in constructors: no DI, can't be mocked. ✅ `IAuditer` registered in DI (step 5).
 - Entities used as API contracts: a client can send `Id` or `Premium` (needs request/response DTOs).
@@ -33,7 +33,7 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 - `DELETE` audits before checking the item exists, and always returns 200.
 - `GET /Covers/{id}` loads all covers into memory, then filters. ✅ `CoverRepository.GetByIdAsync` filters in Mongo (step 2).
 - `POST /Claims` doesn't check that the cover exists.
-- `ComputePremiumAsync` is `async` without `await`; a POST that takes query parameters (see D9).
+- `ComputePremiumAsync` is `async` without `await` (✅ now a plain synchronous action, step 3); a POST that takes query parameters (see D9).
 - Deleting a cover leaves its claims pointing at a cover that no longer exists (see D8).
 
 **Infrastructure**

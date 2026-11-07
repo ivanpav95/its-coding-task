@@ -1,5 +1,6 @@
 using Claims.Application.Auditing;
 using Claims.Application.Repositories;
+using Claims.Application.Services;
 using Claims.Infrastructure.Auditing;
 using Claims.Infrastructure.Persistence;
 using Microsoft.Data.SqlClient;
@@ -50,6 +51,8 @@ builder.Services.AddDbContext<ClaimsContext>((services, options) =>
 builder.Services.AddScoped<ICoverRepository, CoverRepository>();
 builder.Services.AddScoped<IClaimRepository, ClaimRepository>();
 builder.Services.AddScoped<IAuditer, Auditer>();
+builder.Services.AddScoped<ICoverService, CoverService>();
+builder.Services.AddScoped<IClaimService, ClaimService>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
