@@ -24,12 +24,13 @@ Done (local only, not pushed; see `git log`):
 - Audit fields `required` (R2), Task 1 step 1 (folders), working notes and `CLAUDE.md`.
 - Small items: R3 (audit database `ClaimsAudit`), R4 (`.gitattributes`), `MongoClient` singleton.
 - Task 1 step 2: `ICoverRepository`/`IClaimRepository` in `Application/Repositories`, Mongo implementations in `Infrastructure/Persistence`. Controllers use them; behaviour unchanged (still 204 for unknown ids, still `new Auditer(...)`).
-- Task 1 step 5 (done before step 3, D11): `IAuditer` in `Application/Auditing`, `Auditer` registered as scoped. Still synchronous until Task 3.
+- Task 1 step 5 (done before step 3, D11): `IAuditer` in `Application/Auditing`, `Auditer` registered as scoped. Replaced by the queued auditer in Task 3.
 - Task 1 step 3: `ICoverService`/`IClaimService` and implementations in `Application/Services`; controllers are thin, depend on the interfaces and pass the `CancellationToken`. Premium formula moved unchanged (bugs fixed in Task 5). Behaviour unchanged.
 - Task 1 step 4: request/response records in `Application/Contracts`; `DateOnly` for cover dates and `Claim.Created` (D7); Mongo mapping moved to `ClaimsContext` so Domain has no MongoDB dependency (D6). Premium still the template formula.
 - Task 1 step 6: 404/204/409/201 as decided (D8, D12–D14), `compute` is GET, no audit for operations that didn't happen, XML docs and `[ProducesResponseType]` on every endpoint (Swagger). **Task 1 is complete.**
 - Task 5: `PremiumCalculator` in `Domain` replaces the template formula (P1–P3 fixed); new `Claims.UnitTests` project with 21 spec tests (D15).
 - Task 2: FluentValidation validators in `Application/Validation`, called with `ValidateAsync` from the services; claim date checked against the cover period in `ClaimService`; `TimeProvider` injected; `compute` uses the cover rules (D17); one `Invalid(errors)` path to 400 (D18); sanity rules (D19); 18 validator tests (D20). The 500 for an end date before the start date is gone.
+- Task 3: `ChannelAuditer` (singleton `IAuditer`) queues `AuditMessage`s on a bounded channel; `AuditWriter` (`BackgroundService`) saves them, one scope per message (D4, D21–D25). The old `Auditer` is deleted. 3 unit tests.
 
 Build: 0 compiler warnings, no vulnerable packages (R8 fixed). One analyzer warning left: R9 (xUnit1051, fixed in Task 4).
 
@@ -65,7 +66,7 @@ Decisions behind every step are in `docs/findings.md` (D1–D14, D5.x). Every st
 - Cover: `StartDate` not before today (UTC date, today allowed), `EndDate >= StartDate`, `EndDate <= StartDate.AddYears(1).AddDays(-1)`.
 - Inject `TimeProvider` (`TimeProvider.System` in DI, `FakeTimeProvider` in tests).
 
-**Task 3: async auditing (D4)**
+**Task 3: async auditing (D4)** ✅ done (D21–D25).
 
 - Bounded `Channel<AuditMessage>` (`FullMode = Wait`), a writer used by the services, and a `BackgroundService` that creates a DI scope per write to get `AuditContext`.
 - Use UTC timestamps. Drain the channel on graceful shutdown. Document: queued audits are lost on a crash; outbox or a broker would fix that.

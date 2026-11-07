@@ -46,8 +46,8 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 
 **Auditing (Task 3)**
 
-- Synchronous `SaveChanges()` inside the request blocks the HTTP pipeline.
-- `DateTime.Now` instead of UTC.
+- Synchronous `SaveChanges()` inside the request blocks the HTTP pipeline. ✅ queued, saved by a background worker (D4).
+- `DateTime.Now` instead of UTC. ✅ UTC from `TimeProvider`, taken when the request happens.
 
 **Data**
 
@@ -93,6 +93,11 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 | D18  | One way to report invalid input                                   | Failed rules, a missing cover and a date outside the cover period all become `Invalid(errors)` → 400 `ValidationProblemDetails`. `CreateClaimResult` is `Created` or `Invalid` (replaces `CoverNotFound`); covers and `compute` get the same shape. The response is what D13 promised; there's just one path to it | ✅ (Task 2)                 |
 | D19  | Sanity rules beyond the spec (Ivan agreed)                        | `DamageCost > 0`; `Name` and `CoverId` not empty (`""` passed model binding); `Type` must be a defined enum value (a number like `99` passed). Each is an assumption, named as such in the README/PR                                                                                                                                                    | ✅ (Task 2)                 |
 | D20  | When validator tests are written                                  | With the validators, in the same commit (like the calculator in Task 5): every rule on both sides of its boundary, `FakeTimeProvider` for "today". Service tests follow in Task 4                                                                                                                                                                          | ✅ (Task 2)                 |
+| D21  | Audit queue size                                                  | 1000, from config `Auditing:QueueCapacity`. A guess; config lets it change without a code change | ✅ (Task 3) |
+| D22  | A failed audit write                                              | Logged with the message and skipped, no retry; the worker keeps running. Retries/dead-letter named as a next step | ✅ (Task 3) |
+| D23  | Shutdown                                                          | The worker closes the channel and saves what's queued, within the host shutdown timeout; leftovers are logged. An audit after the channel closed is logged and dropped, the request doesn't fail | ✅ (Task 3) |
+| D24  | `HttpRequestType` stays a string                                  | Matches the existing column and migration; an enum would need a migration for no gain in this task | ✅ (Task 3) |
+| D25  | `IAuditer` takes no `CancellationToken`                           | The audit runs after the entity is saved; a client disconnect must not cancel it. The only wait is backpressure from a full queue | ✅ (Task 3) |
 
 **Packages checked (2026-11-06, spike outside the repo):** `FluentValidation` 12.2.0 and `Microsoft.Extensions.TimeProvider.Testing` 10.11.0 restore and work on net10.0. The test project runs on xunit.v3 with Microsoft.Testing.Platform (`global.json`).
 

@@ -316,7 +316,7 @@ Each expected value is derived from the README by hand, never from running the c
 
 ---
 
-## 14. Audit writes off the request path (D4, Task 3) 🔧
+## 14. Audit writes off the request path (D4, Task 3) ✅
 
 **Problem.** Every POST and DELETE calls `Auditer`, which runs a synchronous `SaveChanges()` against SQL Server inside the request. The request waits for the audit insert. The template also uses `DateTime.Now` (local time: verified rows are UTC+1) and audits a DELETE before it knows the item exists.
 
@@ -327,13 +327,13 @@ Each expected value is derived from the README by hand, never from running the c
 Channel.CreateBounded<AuditMessage>(new BoundedChannelOptions(capacity)
     { FullMode = BoundedChannelFullMode.Wait });
 
-// AuditWorker : BackgroundService
-await foreach (var message in reader.ReadAllAsync(ct))
+// AuditWriter : BackgroundService (simplified; see "As built")
+await foreach (var message in channel.Reader.ReadAllAsync(CancellationToken.None))
 {
     await using var scope = scopeFactory.CreateAsyncScope();
     var db = scope.ServiceProvider.GetRequiredService<AuditContext>();
-    db.Add(message.ToEntity());
-    await db.SaveChangesAsync(ct);
+    db.Add(ToEntity(message));
+    await db.SaveChangesAsync();
 }
 ```
 
@@ -351,6 +351,18 @@ await foreach (var message in reader.ReadAllAsync(ct))
 - `Task.Run` fire-and-forget would use the request's scoped `DbContext` after the request ended (disposed object, or two threads on one context), swallow exceptions, and has no backpressure.
 
 **Accepted trade-off.** Messages still in the channel are lost if the process crashes. The durable next step is the outbox pattern (store the audit in the same transaction as the data, publish it later) or a broker such as Azure Service Bus or RabbitMQ. `IAuditer` means that swap doesn't touch the services.
+
+**As built.**
+- `Infrastructure/Auditing/ChannelAuditer` is the singleton `IAuditer`. It gets only the `ChannelWriter<AuditMessage>`, stamps `TimeProvider.GetUtcNow()` (the time of the request, not of the insert) and writes. While the queue has room, `WriteAsync` returns an already-completed `ValueTask`: the request doesn't wait, switch threads or allocate. It only waits (asynchronously, without holding a thread) when the queue is full. The worker's continuation runs on the thread pool (`AllowSynchronousContinuations` is `false` by default), so the request thread never runs the SQL insert. `ValueTask` matches the channel's own API; `Task` would also work, since the fast-path difference is tiny.
+- `Infrastructure/Auditing/AuditWriter` is the `BackgroundService`. It gets the `Channel<AuditMessage>` because it reads it and also closes it on shutdown. `SingleReader = true` because it's the only reader.
+- `Program.cs` registers one `Channel` and its `Writer` separately, so the auditer can't read and the services know neither (S, I, D). The old `Auditer` is deleted.
+- Capacity is `Auditing:QueueCapacity` = 1000 (D21). It's a guess, and it's in config so it can change without a code change.
+- A failed insert is logged with the full message and skipped (D22). The loop keeps running; retries or a dead-letter table are the next step.
+- **Shutdown (D23).** `StopAsync` closes the writer, then `base.StopAsync` waits for `ExecuteAsync`, which ends when the queue is empty. That wait is bounded by the host shutdown timeout (30 s by default); anything left is logged with a count. The loop and the inserts deliberately don't use the stopping token, because cancelling it would abandon the queue instead of draining it. A request that audits after the channel closed gets a logged warning, not an exception: its data is already saved.
+- **No `CancellationToken` on `IAuditer` (D25).** The audit runs after the entity was saved. Passing the request token would let a client disconnect cancel the audit of a change that did happen.
+- `HttpRequestType` stays a string to match the existing column (D24).
+
+**Verified.** 3 unit tests for `ChannelAuditer` (message content and UTC `Kind`; a closed channel doesn't throw). With the app running, a cover and a claim created and deleted give 4 rows with UTC timestamps. With the SQL Server container paused, `POST /Covers` still returned 201 in 12 ms; the worker logged `Failed to save AuditMessage { ... }`, and the next audit after unpausing was saved. The graceful-shutdown drain is not verified by hand: stopping the app from the tooling kills the process instead of sending a graceful stop.
 
 ---
 

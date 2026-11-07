@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
 using System.Runtime.InteropServices;
 using System.Text.Json.Serialization;
+using System.Threading.Channels;
 using Testcontainers.MongoDb;
 using Testcontainers.MsSql;
 
@@ -53,9 +54,18 @@ builder.Services.AddDbContext<ClaimsContext>((services, options) =>
 
 builder.Services.AddScoped<ICoverRepository, CoverRepository>();
 builder.Services.AddScoped<IClaimRepository, ClaimRepository>();
-builder.Services.AddScoped<IAuditer, Auditer>();
 builder.Services.AddScoped<ICoverService, CoverService>();
 builder.Services.AddScoped<IClaimService, ClaimService>();
+
+var auditQueueCapacity = builder.Configuration.GetRequiredSection("Auditing:QueueCapacity").Get<int>();
+builder.Services.AddSingleton(Channel.CreateBounded<AuditMessage>(new BoundedChannelOptions(auditQueueCapacity)
+{
+    FullMode = BoundedChannelFullMode.Wait,
+    SingleReader = true
+}));
+builder.Services.AddSingleton(services => services.GetRequiredService<Channel<AuditMessage>>().Writer);
+builder.Services.AddSingleton<IAuditer, ChannelAuditer>();
+builder.Services.AddHostedService<AuditWriter>();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IValidator<CreateCoverRequest>, CreateCoverRequestValidator>();
