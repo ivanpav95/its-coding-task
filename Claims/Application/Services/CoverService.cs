@@ -1,4 +1,5 @@
 using Claims.Application.Auditing;
+using Claims.Application.Contracts;
 using Claims.Application.Repositories;
 using Claims.Domain;
 
@@ -6,19 +7,32 @@ namespace Claims.Application.Services;
 
 public class CoverService(ICoverRepository covers, IAuditer auditer) : ICoverService
 {
-    public Task<IReadOnlyList<Cover>> GetAllAsync(CancellationToken cancellationToken = default) =>
-        covers.GetAllAsync(cancellationToken);
-
-    public Task<Cover?> GetByIdAsync(string id, CancellationToken cancellationToken = default) =>
-        covers.GetByIdAsync(id, cancellationToken);
-
-    public async Task<Cover> CreateAsync(Cover cover, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<CoverResponse>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        cover.Id = Guid.NewGuid().ToString();
-        cover.Premium = ComputePremium(cover.StartDate, cover.EndDate, cover.Type);
+        var all = await covers.GetAllAsync(cancellationToken);
+        return all.Select(CoverResponse.From).ToList();
+    }
+
+    public async Task<CoverResponse?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
+    {
+        var cover = await covers.GetByIdAsync(id, cancellationToken);
+        return cover is null ? null : CoverResponse.From(cover);
+    }
+
+    public async Task<CoverResponse> CreateAsync(CreateCoverRequest request, CancellationToken cancellationToken = default)
+    {
+        var cover = new Cover
+        {
+            Id = Guid.NewGuid().ToString(),
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
+            Type = request.Type,
+            Premium = ComputePremium(request.StartDate, request.EndDate, request.Type)
+        };
+
         await covers.AddAsync(cover, cancellationToken);
         auditer.AuditCover(cover.Id, "POST");
-        return cover;
+        return CoverResponse.From(cover);
     }
 
     public async Task<bool> DeleteAsync(string id, CancellationToken cancellationToken = default)
@@ -27,7 +41,8 @@ public class CoverService(ICoverRepository covers, IAuditer auditer) : ICoverSer
         return await covers.DeleteAsync(id, cancellationToken);
     }
 
-    public decimal ComputePremium(DateTime startDate, DateTime endDate, CoverType coverType)
+    // Template formula, unchanged apart from the DateOnly parameters. Replaced in Task 5.
+    public decimal ComputePremium(DateOnly startDate, DateOnly endDate, CoverType coverType)
     {
         var multiplier = 1.3m;
         if (coverType == CoverType.Yacht)
@@ -46,7 +61,7 @@ public class CoverService(ICoverRepository covers, IAuditer auditer) : ICoverSer
         }
 
         var premiumPerDay = 1250 * multiplier;
-        var insuranceLength = (endDate - startDate).TotalDays;
+        var insuranceLength = endDate.DayNumber - startDate.DayNumber;
         var totalPremium = 0m;
 
         for (var i = 0; i < insuranceLength; i++)

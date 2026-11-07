@@ -1,5 +1,5 @@
+using Claims.Application.Contracts;
 using Claims.Application.Services;
-using Claims.Domain;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Claims.Api.Controllers;
@@ -9,15 +9,15 @@ namespace Claims.Api.Controllers;
 public class ClaimsController(IClaimService claimService) : ControllerBase
 {
     [HttpGet]
-    public async Task<IEnumerable<Claim>> GetAsync(CancellationToken cancellationToken)
+    public async Task<IEnumerable<ClaimResponse>> GetAsync(CancellationToken cancellationToken)
     {
         return await claimService.GetAllAsync(cancellationToken);
     }
 
     [HttpPost]
-    public async Task<ActionResult> CreateAsync(Claim claim, CancellationToken cancellationToken)
+    public async Task<ActionResult<ClaimResponse>> CreateAsync(CreateClaimRequest request, CancellationToken cancellationToken)
     {
-        return Ok(await claimService.CreateAsync(claim, cancellationToken));
+        return Ok(await claimService.CreateAsync(request, cancellationToken));
     }
 
     [HttpDelete("{id}")]
@@ -27,7 +27,7 @@ public class ClaimsController(IClaimService claimService) : ControllerBase
     }
 
     [HttpGet("{id}")]
-    public async Task<Claim?> GetAsync(string id, CancellationToken cancellationToken)
+    public async Task<ClaimResponse?> GetAsync(string id, CancellationToken cancellationToken)
     {
         return await claimService.GetByIdAsync(id, cancellationToken);
     }

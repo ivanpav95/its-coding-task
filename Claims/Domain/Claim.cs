@@ -1,34 +1,24 @@
-﻿using System.Text.Json.Serialization;
-using MongoDB.Bson.Serialization.Attributes;
+﻿namespace Claims.Domain;
 
-namespace Claims.Domain
+public class Claim
 {
-    public class Claim
-    {
-        [BsonId]
-        public string Id { get; set; }
+    public required string Id { get; init; }
 
-        [BsonElement("coverId")]
-        public string CoverId { get; set; }
+    public required string CoverId { get; init; }
 
-        [BsonElement("created")]
-        public DateTime Created { get; set; }
+    public DateOnly Created { get; init; }
 
-        [BsonElement("name")]
-        public string Name { get; set; }
+    public required string Name { get; init; }
 
-        [BsonElement("claimType")]
-        public ClaimType Type { get; set; }
+    public ClaimType Type { get; init; }
 
-        [BsonElement("damageCost")]
-        public decimal DamageCost { get; set; }
-    }
+    public decimal DamageCost { get; init; }
+}
 
-    public enum ClaimType
-    {
-        Collision = 0,
-        Grounding = 1,
-        BadWeather = 2,
-        Fire = 3
-    }
+public enum ClaimType
+{
+    Collision = 0,
+    Grounding = 1,
+    BadWeather = 2,
+    Fire = 3
 }

@@ -87,7 +87,7 @@ Dependencies point inward: `Api` → `Application` → `Domain`; `Infrastructure
 
 ---
 
-## 4. Request/response DTOs (Task 1 step 4, R7) 🔧
+## 4. Request/response DTOs (Task 1 step 4, R7) ✅
 
 **Problem.** The domain entities are the API contract.
 - A client can send `Id` and `Premium`. They are overwritten, but Swagger shows them as inputs.
@@ -99,17 +99,32 @@ Dependencies point inward: `Api` → `Application` → `Domain`; `Infrastructure
 
 **Why hand-written mapping, not AutoMapper.** It's a handful of properties. Hand-written mapping is explicit, checked by the compiler and searchable. AutoMapper turns mapping mistakes into runtime errors and hides where a value comes from.
 
+**Where they live: `Application/Contracts`, not `Api`.** The services take requests and return responses, so the contract types must be visible to `Application`; if they lived in `Api`, `Application` would depend on `Api`. It also lets the FluentValidation validators (§12) validate the requests inside the services.
+
+**How mapping works.**
+- Entity → response: a static `From` on each response record (`CoverResponse.From(cover)`), one line each.
+- Request → entity: in the service's `CreateAsync`, because that's where the server-owned values (`Id`, `Premium`) are set.
+
+**Domain entities after the change.** Strings are `required` and properties are `init`: an entity can't be constructed without its id, and nothing changes it after creation. This removed the last 4 nullable warnings (CS8618): they existed because model binding used to fill the entities.
+
+**Verified on the running app.** POST without `id` works (R7 fixed); an `id` or `premium` sent by a client is ignored; a missing `name` gives 400 from `[ApiController]` model validation; Swagger's `CreateCoverRequest` shows only `startDate`, `endDate` (format `date`) and `type`.
+
 ---
 
-## 5. Mongo attributes on domain entities (D6) 🔧 revisit in step 4
+## 5. Mongo mapping lives in Infrastructure (D6) ✅
 
-**Problem.** `[BsonId]` and `[BsonElement]` on `Claim` and `Cover` make Domain depend on the MongoDB package.
+**Problem.** `[BsonId]` and `[BsonElement]` on `Claim` and `Cover` made Domain depend on the MongoDB package.
 
-**Options.**
-- Keep them: pragmatic, one place to read the storage names.
-- Move the mapping to `ClaimsContext.OnModelCreating` (`HasElementName(...)`), so Domain has no Mongo dependency.
+**Decision.** Domain has no MongoDB dependency. The element names are configured in `ClaimsContext.OnModelCreating` with `HasElementName(...)`; `[BsonId]` isn't needed because EF maps a property named `Id` to `_id` by convention.
 
-To be decided in step 4. Either way, `Cover.Type` keeps the BSON name `"claimType"`, a quirk from the template: renaming it would make existing documents unreadable.
+**Why.**
+- Domain is the business model; how it's stored is an infrastructure detail. Dependencies point inward (D1), so Domain depends on nothing.
+- The storage can change (SQL Server, Cosmos DB) without touching the domain classes.
+- Domain tests (e.g. the premium calculator) don't pull in a database package.
+
+**Trade-off.** A reader sees the storage names in `ClaimsContext` instead of on the entity. Mapping in one place for the whole model is how EF is normally used anyway.
+
+**Verified.** Raw documents were dumped from Mongo before and after the change: same element names (`_id`, `coverId`, `created`, `name`, `claimType`, `damageCost`, `startDate`, `endDate`, `premium`), same BSON types (`ISODate`, `Decimal128`, enums as numbers), same values. `Cover.Type` keeps the template's BSON name `"claimType"`: renaming it would make existing documents unreadable.
 
 ---
 
@@ -159,7 +174,7 @@ Measured on the running template, and what each request will return:
 
 ---
 
-## 9. `DateOnly` where the time isn't needed (D7, R6) 🔧
+## 9. `DateOnly` where the time isn't needed (D7, R6) ✅
 
 **Problem found while running (R6).** A cover sent as starting `2026-12-01T00:00:00` came back as `2026-11-30T23:00:00Z`.
 
