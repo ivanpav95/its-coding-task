@@ -55,7 +55,7 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 
 **Testing (Task 4)**
 
-- The only test is an integration test that silently needs Docker (via `Program.cs`).
+- The only test is an integration test that silently needs Docker (via `Program.cs`). ✅ Split into `Claims.UnitTests` (no Docker) and `Claims.IntegrationTests` (D15, Task 4a).
 
 **Premium (Task 5)**
 
@@ -98,6 +98,8 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 | D23  | Shutdown                                                          | The worker closes the channel and saves what's queued, within the host shutdown timeout; leftovers are logged. An audit after the channel closed is logged and dropped, the request doesn't fail | ✅ (Task 3) |
 | D24  | `HttpRequestType` stays a string                                  | Matches the existing column and migration; an enum would need a migration for no gain in this task | ✅ (Task 3) |
 | D25  | `IAuditer` takes no `CancellationToken`                           | The audit runs after the entity is saved; a client disconnect must not cancel it. The only wait is backpressure from a full queue | ✅ (Task 3) |
+| D26  | Service tests: hand-written fakes, real validators                | In-memory repositories and a recording auditer in `Claims.UnitTests/Fakes`; no mocking package. The validators are real (pure, already tested) with `FakeTimeProvider`. Rejected: Moq/NSubstitute (setup per test, asserts on calls instead of state) | ✅ (Task 4b) |
+| D27  | No controller unit tests                                          | Controllers only map results to HTTP; the integration tests check that through the real pipeline (4c). Testing it twice is more code, not better code | ✅ (Task 4b) |
 
 **Packages checked (2026-11-06, spike outside the repo):** `FluentValidation` 12.2.0 and `Microsoft.Extensions.TimeProvider.Testing` 10.11.0 restore and work on net10.0. The test project runs on xunit.v3 with Microsoft.Testing.Platform (`global.json`).
 

@@ -454,3 +454,20 @@ var sql = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
 **Why this and not upgrading SqlClient.** The pin changes only the vulnerable library, to the same 10.0.14 servicing version as the other Microsoft packages. Upgrading SqlClient to 7.x would be a major-version change underneath EF Core 10.0.14, which EF wasn't released against. When EF Core ships with a fixed SqlClient, the pin can be removed.
 
 **Verified.** `dotnet list package --vulnerable --include-transitive` reports nothing for either project; the app still writes audit rows through SqlClient.
+
+---
+
+## 21. Tests (Task 4) 🔧 4c
+
+**Two projects (D15, 4a).** `Claims.UnitTests` runs in about a second with no Docker; `Claims.IntegrationTests` starts the real app with its SQL Server and MongoDB containers. The names say what each one needs.
+
+**Service tests use hand-written fakes (D26, 4b).**
+- `Fakes/InMemoryCoverRepository` and `InMemoryClaimRepository` are dictionaries behind the real interfaces; `RecordingAuditer` keeps a list of the audits it was asked for.
+- The tests assert on **state** (what is stored, which audits were recorded), not on which methods were called. A refactoring that keeps the behaviour doesn't break them.
+- The fakes honour the same contracts as the Mongo repositories (`DeleteAsync` returns `false` for an unknown id). That's Liskov in practice: the services can't tell them apart.
+- The validators are the real ones with `FakeTimeProvider`: they're pure and tested on their own, and faking them would test less with more code.
+- Rejected: Moq or NSubstitute. Less code per fake, but every test sets up return values, and asserting on calls ties tests to the implementation.
+
+**What the service tests prove.** Every outcome of every use case, and the side effects that go with it: a valid cover is stored with the premium from the README (10 Yacht days = 13,750) and audited once; anything rejected (invalid input, unknown cover, a claim outside the period, a cover that still has claims, an unknown id) stores nothing and audits nothing; a claim on the first and last day of the cover is accepted, the day before and after is not. Checked by breaking the end-date check (`>` → `>=`): the boundary test fails.
+
+**No controller unit tests (D27).** Controllers only map results to status codes. The integration tests (4c) check exactly that through routing, model binding, JSON and `ProblemDetails`, which a controller unit test would skip.
