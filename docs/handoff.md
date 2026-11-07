@@ -29,7 +29,7 @@ Done (local only, not pushed; see `git log`):
 - Task 1 step 4: request/response records in `Application/Contracts`; `DateOnly` for cover dates and `Claim.Created` (D7); Mongo mapping moved to `ClaimsContext` so Domain has no MongoDB dependency (D6). Premium still the template formula.
 - Task 1 step 6: 404/204/409/201 as decided (D8, D12–D14), `compute` is GET, no audit for operations that didn't happen, XML docs and `[ProducesResponseType]` on every endpoint (Swagger). **Task 1 is complete.**
 
-Build: 0 compiler warnings. Two non-compiler warnings to fix: R8 (vulnerable transitive package) and R9 (xUnit1051, Task 4).
+Build: 0 compiler warnings, no vulnerable packages (R8 fixed). One analyzer warning left: R9 (xUnit1051, fixed in Task 4).
 
 Notes for the next steps:
 

@@ -17,6 +17,8 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.14" />
     <PackageReference Include="MongoDB.EntityFrameworkCore" Version="10.0.4" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.3.1" />
+    <!-- Pinned: Microsoft.Data.SqlClient 6.1.7 pulls in 9.0.11, which has known vulnerabilities (R8). -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
     <PackageReference Include="Testcontainers.MongoDb" Version="4.16.0" />
     <PackageReference Include="Testcontainers.MsSql" Version="4.16.0" />
   </ItemGroup>

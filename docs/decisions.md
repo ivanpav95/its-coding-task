@@ -410,3 +410,15 @@ var sql = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
 **Why.** The `Microsoft.AspNetCore.Mvc.Testing` MSBuild target writes the app's content root using `$([System.IO.Path]::GetDirectoryName('<path>'))`. The `'` in `Ivan's PC` ends the quoted string early, so the expression is written to `MvcTestingAppManifest.json` unevaluated, and `WebApplicationFactory` can't find the folder.
 
 **Status.** Not a code bug; reviewers won't hit it. Until it's fixed, set `ASPNETCORE_TEST_CONTENTROOT_CLAIMS` to the `Claims` folder (verified: the test passes), or clone to a path without `'`.
+
+---
+
+## 20. Vulnerable transitive package pinned (R8) ✅
+
+**Problem.** `dotnet build` warned NU1902/NU1903: `System.Security.Cryptography.Pkcs` 9.0.11 has a known moderate and a known high severity vulnerability. It isn't referenced directly; `dotnet nuget why` shows the path `Microsoft.EntityFrameworkCore.SqlServer` 10.0.14 → `Microsoft.Data.SqlClient` 6.1.7 → `System.Security.Cryptography.Pkcs` 9.0.11.
+
+**Decision.** A direct `PackageReference` to `System.Security.Cryptography.Pkcs` 10.0.14 in `Claims.csproj`. NuGet resolves the highest requested version for the whole graph, so SqlClient gets the patched library; the test project inherits it through its project reference.
+
+**Why this and not upgrading SqlClient.** The pin changes only the vulnerable library, to the same 10.0.14 servicing version as the other Microsoft packages. Upgrading SqlClient to 7.x would be a major-version change underneath EF Core 10.0.14, which EF wasn't released against. When EF Core ships with a fixed SqlClient, the pin can be removed.
+
+**Verified.** `dotnet list package --vulnerable --include-transitive` reports nothing for either project; the app still writes audit rows through SqlClient.
