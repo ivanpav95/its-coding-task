@@ -31,7 +31,11 @@ public class ClaimsController(IClaimService claimService) : ControllerBase
 
     /// <summary>Creates a claim for an existing cover. The id is set by the server.</summary>
     /// <response code="201">The claim was created; <c>Location</c> points to it.</response>
-    /// <response code="400">The request is invalid, e.g. the cover doesn't exist.</response>
+    /// <remarks>
+    /// The damage cost must be more than 0 and at most 100,000, and the created date must lie within the
+    /// cover's period (both ends included).
+    /// </remarks>
+    /// <response code="400">The request is invalid, the cover doesn't exist, or the date is outside the cover period.</response>
     [HttpPost]
     [ProducesResponseType<ClaimResponse>(StatusCodes.Status201Created)]
     [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
@@ -41,15 +45,9 @@ public class ClaimsController(IClaimService claimService) : ControllerBase
         {
             CreateClaimResult.Created created =>
                 CreatedAtAction(nameof(GetById), new { id = created.Claim.Id }, created.Claim),
-            CreateClaimResult.CoverNotFound notFound => CoverDoesNotExist(notFound.CoverId),
+            CreateClaimResult.Invalid invalid => this.ValidationProblem(invalid.Errors),
             var result => throw new InvalidOperationException($"Unhandled result {result}.")
         };
-    }
-
-    private ActionResult CoverDoesNotExist(string coverId)
-    {
-        ModelState.AddModelError(nameof(CreateClaimRequest.CoverId), $"Cover '{coverId}' does not exist.");
-        return ValidationProblem(ModelState);
     }
 
     /// <summary>Deletes a claim.</summary>

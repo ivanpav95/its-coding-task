@@ -29,8 +29,7 @@ Done (local only, not pushed; see `git log`):
 - Task 1 step 4: request/response records in `Application/Contracts`; `DateOnly` for cover dates and `Claim.Created` (D7); Mongo mapping moved to `ClaimsContext` so Domain has no MongoDB dependency (D6). Premium still the template formula.
 - Task 1 step 6: 404/204/409/201 as decided (D8, D12–D14), `compute` is GET, no audit for operations that didn't happen, XML docs and `[ProducesResponseType]` on every endpoint (Swagger). **Task 1 is complete.**
 - Task 5: `PremiumCalculator` in `Domain` replaces the template formula (P1–P3 fixed); new `Claims.UnitTests` project with 21 spec tests (D15).
-
-**Known gap until Task 2:** an end date before the start date now makes the calculator throw, so `POST /Covers` and `GET /Covers/compute` return 500 for that input (the template silently stored premium 0). Task 2 validation turns it into a 400.
+- Task 2: FluentValidation validators in `Application/Validation`, called with `ValidateAsync` from the services; claim date checked against the cover period in `ClaimService`; `TimeProvider` injected; `compute` uses the cover rules (D17); one `Invalid(errors)` path to 400 (D18); sanity rules (D19); 18 validator tests (D20). The 500 for an end date before the start date is gone.
 
 Build: 0 compiler warnings, no vulnerable packages (R8 fixed). One analyzer warning left: R9 (xUnit1051, fixed in Task 4).
 
@@ -59,7 +58,7 @@ Decisions behind every step are in `docs/findings.md` (D1–D14, D5.x). Every st
 - Write tests from the spec first. Expected Yacht totals for N days: 10 → 13,750.00; 100 → 132,687.50; 200 → 262,487.50 (computed with the template's exclusive day count; with inclusive dates, a cover of N days runs from day D to D+N−1).
 - Rates in one place so a different reading of "additional" is a one-line change.
 
-**Task 2: validation (D2, D3, D5.2, D5.4)**
+**Task 2: validation (D2, D3, D5.2, D5.4)** ✅ done (D17–D20).
 
 - FluentValidation validators for requests, run explicitly with `ValidateAsync` from the services (no auto-validation).
 - Claim: `DamageCost <= 100_000`. "Created within cover period" is checked in `ClaimService` after loading the cover.

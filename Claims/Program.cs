@@ -1,6 +1,9 @@
 using Claims.Application.Auditing;
+using Claims.Application.Contracts;
 using Claims.Application.Repositories;
 using Claims.Application.Services;
+using Claims.Application.Validation;
+using FluentValidation;
 using Claims.Infrastructure.Auditing;
 using Claims.Infrastructure.Persistence;
 using Microsoft.Data.SqlClient;
@@ -53,6 +56,10 @@ builder.Services.AddScoped<IClaimRepository, ClaimRepository>();
 builder.Services.AddScoped<IAuditer, Auditer>();
 builder.Services.AddScoped<ICoverService, CoverService>();
 builder.Services.AddScoped<IClaimService, ClaimService>();
+
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<IValidator<CreateCoverRequest>, CreateCoverRequestValidator>();
+builder.Services.AddSingleton<IValidator<CreateClaimRequest>, CreateClaimRequestValidator>();
 
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();

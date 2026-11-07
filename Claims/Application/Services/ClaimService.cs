@@ -2,10 +2,15 @@ using Claims.Application.Auditing;
 using Claims.Application.Contracts;
 using Claims.Application.Repositories;
 using Claims.Domain;
+using FluentValidation;
 
 namespace Claims.Application.Services;
 
-public class ClaimService(IClaimRepository claims, ICoverRepository covers, IAuditer auditer) : IClaimService
+public class ClaimService(
+    IClaimRepository claims,
+    ICoverRepository covers,
+    IAuditer auditer,
+    IValidator<CreateClaimRequest> validator) : IClaimService
 {
     public async Task<IReadOnlyList<ClaimResponse>> GetAllAsync(CancellationToken cancellationToken = default)
     {
@@ -21,10 +26,22 @@ public class ClaimService(IClaimRepository claims, ICoverRepository covers, IAud
 
     public async Task<CreateClaimResult> CreateAsync(CreateClaimRequest request, CancellationToken cancellationToken = default)
     {
+        var validation = await validator.ValidateAsync(request, cancellationToken);
+        if (!validation.IsValid)
+        {
+            return new CreateClaimResult.Invalid(validation.ToDictionary());
+        }
+
         var cover = await covers.GetByIdAsync(request.CoverId, cancellationToken);
         if (cover is null)
         {
-            return new CreateClaimResult.CoverNotFound(request.CoverId);
+            return Invalid(nameof(request.CoverId), $"Cover '{request.CoverId}' does not exist.");
+        }
+
+        if (request.Created < cover.StartDate || request.Created > cover.EndDate)
+        {
+            return Invalid(nameof(request.Created),
+                $"Created date must be within the cover period ({cover.StartDate:yyyy-MM-dd} to {cover.EndDate:yyyy-MM-dd}).");
         }
 
         var claim = new Claim
@@ -52,4 +69,7 @@ public class ClaimService(IClaimRepository claims, ICoverRepository covers, IAud
         auditer.AuditClaim(id, "DELETE");
         return true;
     }
+
+    private static CreateClaimResult.Invalid Invalid(string field, string message) =>
+        new(new Dictionary<string, string[]> { [field] = [message] });
 }

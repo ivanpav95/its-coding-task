@@ -12,14 +12,25 @@ namespace Claims.Api.Controllers;
 public class CoversController(ICoverService coverService) : ControllerBase
 {
     /// <summary>Calculates the premium for a cover without creating it.</summary>
+    /// <remarks>The same rules apply as when creating a cover.</remarks>
     /// <param name="startDate">First day of the insurance period.</param>
     /// <param name="endDate">Last day of the insurance period.</param>
     /// <param name="coverType">Type of the insured object.</param>
+    /// <param name="cancellationToken">Cancelled when the client disconnects.</param>
+    /// <response code="400">The insurance period is invalid.</response>
     [HttpGet("compute")]
     [ProducesResponseType<decimal>(StatusCodes.Status200OK)]
-    public ActionResult<decimal> ComputePremium(DateOnly startDate, DateOnly endDate, CoverType coverType)
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<decimal>> ComputePremium(
+        DateOnly startDate, DateOnly endDate, CoverType coverType, CancellationToken cancellationToken)
     {
-        return coverService.ComputePremium(startDate, endDate, coverType);
+        var request = new CreateCoverRequest(startDate, endDate, coverType);
+        return await coverService.ComputePremiumAsync(request, cancellationToken) switch
+        {
+            ComputePremiumResult.Computed computed => computed.Premium,
+            ComputePremiumResult.Invalid invalid => this.ValidationProblem(invalid.Errors),
+            var result => throw new InvalidOperationException($"Unhandled result {result}.")
+        };
     }
 
     /// <summary>Lists all covers.</summary>
@@ -42,14 +53,24 @@ public class CoversController(ICoverService coverService) : ControllerBase
     }
 
     /// <summary>Creates a cover. The id and the premium are set by the server.</summary>
+    /// <remarks>
+    /// The start date can't be in the past (today, in UTC, is allowed). Both dates are part of the period,
+    /// which can be at most one calendar year.
+    /// </remarks>
     /// <response code="201">The cover was created; <c>Location</c> points to it.</response>
+    /// <response code="400">The request is invalid.</response>
     [HttpPost]
     [ProducesResponseType<CoverResponse>(StatusCodes.Status201Created)]
-    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<CoverResponse>> Create(CreateCoverRequest request, CancellationToken cancellationToken)
     {
-        var cover = await coverService.CreateAsync(request, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id = cover.Id }, cover);
+        return await coverService.CreateAsync(request, cancellationToken) switch
+        {
+            CreateCoverResult.Created created =>
+                CreatedAtAction(nameof(GetById), new { id = created.Cover.Id }, created.Cover),
+            CreateCoverResult.Invalid invalid => this.ValidationProblem(invalid.Errors),
+            var result => throw new InvalidOperationException($"Unhandled result {result}.")
+        };
     }
 
     /// <summary>Deletes a cover. A cover that still has claims can't be deleted.</summary>

@@ -219,7 +219,7 @@ The controller maps each outcome with a `switch`, so every status code is visibl
 
 ---
 
-## 10. Date rules (D5.1, D5.2, D5.4) 🔧
+## 10. Date rules (D5.1, D5.2, D5.4) ✅
 
 **End date inclusive (D5.1).** A cover from 1 Jan to 1 Jan is one day. That's how insurance periods are usually read. Days = `end.DayNumber - start.DayNumber + 1`.
 
@@ -279,7 +279,7 @@ Each expected value is derived from the README by hand, never from running the c
 
 ---
 
-## 12. Validation with FluentValidation, called explicitly (D2) 🔧
+## 12. Validation with FluentValidation, called explicitly (D2) ✅
 
 **Rules.**
 - Claim: `DamageCost <= 100_000`; created date within the related cover's period (inclusive).
@@ -293,11 +293,22 @@ Each expected value is derived from the README by hand, never from running the c
 
 **Why "within the cover period" is in `ClaimService`, not in the validator.** It needs the cover from the database. I/O inside a validator hides a database call where nobody expects it. The service loads the cover anyway to answer "cover not found": one load, both checks.
 
-**Open detail for step 6.** How a failure becomes a 400: a result object the controller maps to `ValidationProblem(...)`, or a `ValidationException` mapped by an `IExceptionHandler`. Both produce the same `ValidationProblemDetails` shape as ASP.NET's own model-binding errors.
+**How a failure becomes a 400 (D14, D18).** The service returns `Invalid(errors)`; the controller turns it into `ValidationProblem(ModelState)`, which goes through ASP.NET's `ProblemDetailsFactory`. So our 400s look exactly like the framework's own model-binding 400s, including `type` and `traceId`. A missing cover and a date outside the cover period use the same path: one kind of "your input is wrong" for clients.
+
+**`GET /Covers/compute` uses the same rules (D17).** A quote is for a cover you'd create; pricing a period that can't be created would be misleading. Before Task 2, an end date before the start date gave 500.
+
+**Sanity rules beyond the spec (D19).** Assumptions, agreed with Ivan, to name in the PR:
+- `DamageCost > 0`: a claim for nothing (or a negative amount) makes no sense.
+- `Name` and `CoverId` not empty: `[ApiController]` rejects `null` but lets `""` through.
+- `Type` must be a defined enum value: JSON with a number like `99` would otherwise be stored.
+
+**Validators are registered by hand** (`AddSingleton<IValidator<CreateCoverRequest>, CreateCoverRequestValidator>()`), two lines instead of the `FluentValidation.DependencyInjectionExtensions` package and assembly scanning. Singleton because they're stateless; "today" is read from `TimeProvider` on every validation, never cached in the constructor.
+
+**Tests with the validators (D20).** Every rule on both sides of its boundary, in the same commit.
 
 ---
 
-## 13. `TimeProvider` for "today" (D3) 🔧
+## 13. `TimeProvider` for "today" (D3) ✅
 
 **Problem.** "Start date not in the past" depends on the current date. With `DateTime.UtcNow` a test that passes today fails tomorrow.
 
