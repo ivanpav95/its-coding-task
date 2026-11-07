@@ -31,8 +31,9 @@ Done (local only, not pushed; see `git log`):
 - Task 5: `PremiumCalculator` in `Domain` replaces the template formula (P1–P3 fixed); new `Claims.UnitTests` project with 21 spec tests (D15).
 - Task 2: FluentValidation validators in `Application/Validation`, called with `ValidateAsync` from the services; claim date checked against the cover period in `ClaimService`; `TimeProvider` injected; `compute` uses the cover rules (D17); one `Invalid(errors)` path to 400 (D18); sanity rules (D19); 18 validator tests (D20). The 500 for an end date before the start date is gone.
 - Task 3: `ChannelAuditer` (singleton `IAuditer`) queues `AuditMessage`s on a bounded channel; `AuditWriter` (`BackgroundService`) saves them, one scope per message (D4, D21–D25). The old `Auditer` is deleted. 3 unit tests.
+- Task 4a: `Claims.Tests` renamed to `Claims.IntegrationTests`; R9 fixed.
 
-Build: 0 compiler warnings, no vulnerable packages (R8 fixed). One analyzer warning left: R9 (xUnit1051, fixed in Task 4).
+Build: 0 warnings, no vulnerable packages (R8 fixed).
 
 Notes for the next steps:
 
