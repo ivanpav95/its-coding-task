@@ -235,6 +235,10 @@ The controller maps each outcome with a `switch`, so every status code is visibl
 - `Claim.Created` is the moment the damage happened: `DateTimeOffset` in the API, UTC `DateTime` in the database. A claim must satisfy `StartsAt <= Created < EndsAt`, and can't be in the future.
 - A time without a UTC offset (`"2026-11-09T10:00:00"`) is rejected with a 400 by `RequireOffsetDateTimeOffsetConverter`. Otherwise System.Text.Json reads it in the server's time zone, the same mistake as R6.
 
+**Who decides what.**
+- **Cover: the client chooses days, the server owns the moments.** The request has only `startDate` and `endDate`, with no time and no time zone: a day means the same to everyone. The server has everything else: "now" from its own clock (a moment needs no zone) and midnight from the business time zone in configuration. The client mustn't set the start moment, or it could buy at 18:00 and say the cover began at 06:00; and it mustn't choose the zone, or a false one would shift "today" (D30).
+- **Claim: the client reports a moment only it knows.** When the damage happened can't be worked out by the server, so the client sends it, with an offset, so it's one exact moment. The server then checks it against the cover's `StartsAt`/`EndsAt` and against "now".
+
 **Why both moments are stored.** `StartsAt` depends on when the cover was bought, so it can't be derived later. `EndsAt` could be derived from `EndDate`, but only while the configured time zone never changes. Storing it fixes a sold policy's period exactly, and the claim check is a plain comparison with no time zone.
 
 **Rejected.**
