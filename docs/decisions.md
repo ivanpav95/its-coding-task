@@ -417,13 +417,29 @@ var sql = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
 
 ---
 
-## 17. Testcontainers stay in `Program.cs` (R1) — accepted trade-off
+## 17. Databases come from configuration, not from `Program.cs` (R1, D29) ✅
 
-**Problem.** Every app start launches SQL Server and MongoDB containers. The first run silently pulls a ~1.5 GB image and looks stuck.
+**Problem.** The template's `Program.cs` started new SQL Server and MongoDB containers with Testcontainers on every run. Startup was slow, the first run silently pulled a ~1.5 GB image and looked stuck, data was lost on every restart, and the app owned its own infrastructure. The task README also notes that hosting it anywhere else needs this rewritten.
 
-**Decision.** Keep it. The template chose it so the app runs with only Docker installed, and changing hosting is outside the tasks.
+**First decision, revised.** We kept it at first because hosting isn't one of the tasks. We changed it because it's the one step that makes the app hostable, and it puts the test infrastructure where it belongs.
 
-**What we'd do in production.** Connection strings from configuration (Key Vault in Azure, user secrets locally), containers via docker-compose or .NET Aspire for local development, Testcontainers only in test fixtures, and migrations run by the deployment pipeline instead of at app start.
+**Decision.** The app only knows two connection strings, `ConnectionStrings:Audit` and `ConnectionStrings:Claims`. Who provides the databases depends on where it runs:
+
+| Where | Databases |
+|---|---|
+| Unit tests | None: hand-written in-memory fakes (D26) |
+| Integration tests | Testcontainers in `ClaimsApiFactory`: throwaway containers per test run, connection strings passed in through configuration |
+| Local development | `docker compose up -d --wait`: containers with named volumes, so data survives app restarts; connection strings in `appsettings.Development.json` |
+| Production (next step) | Managed services such as Azure SQL and Cosmos DB for MongoDB; connection strings from app settings or Key Vault |
+
+**How.** `Program.cs` reads the connection strings inside the `AddDbContext` and `MongoClient` registrations, so they're read when first used. A missing one fails with a clear message. The test factory adds its connection strings with `ConfigureAppConfiguration`, which takes precedence over `appsettings.Development.json`.
+
+**Trade-offs.**
+- The local SQL password is in `docker-compose.yml` and `appsettings.Development.json`. It only protects a local throwaway container, and committing it lets a reviewer run the app with no setup. Real secrets belong in Key Vault or Managed Identity.
+- Running the app is one command longer (`docker compose up -d --wait` first).
+- Migrations still run at startup. Fine for one local instance; with several instances in Azure they'd move to the deployment pipeline.
+
+**Rejected.** Testcontainers reuse (`.WithReuse(true)`): it's experimental, it turns off the cleanup container, and the app would still start its own infrastructure.
 
 ---
 

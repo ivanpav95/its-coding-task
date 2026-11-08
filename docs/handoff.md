@@ -15,7 +15,7 @@ Read this file and `docs/findings.md` before doing anything.
 Working rules, code rules and environment notes are in `CLAUDE.md` at the repo root (loaded automatically by Claude Code).
 
 - Branch: `feature/claims-refactor`. Final step is a PR into `main` with a written explanation.
-- First run pulls large container images with no progress output (R1).
+- Local databases: `docker compose up -d --wait`; integration tests start their own containers (D29). The first pull of the SQL Server image (~1.5 GB) is slow.
 
 ## Current state
 
@@ -85,6 +85,6 @@ Decisions behind every step are in `docs/findings.md` (D1–D14, D5.x). Every st
 - README section: how to run, design decisions and assumptions (copy from `docs/findings.md`).
 - PR description: where to look first, trade-offs, assumptions, what Ivan wants to discuss.
 - AI artifacts (encouraged by the README): keep `docs/handoff.md` and `docs/findings.md` in the repo and mention them in the PR. Review their wording for a reviewer audience first.
-- Hosting: no Azure deployment; demo runs locally. Name the Testcontainers-in-`Program.cs` limitation (R1 long term) as a known trade-off in the PR.
+- Hosting: databases come from configuration (D29). Azure deployment after submission, on a separate branch, before the demo (2–5 days after Monday). The PR names it as the next step without promising a URL.
 - Mock interview: quiz Ivan on his own solution.
 
