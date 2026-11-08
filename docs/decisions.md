@@ -225,9 +225,16 @@ The controller maps each outcome with a `switch`, so every status code is visibl
 
 **At most one year (D5.2).** `EndDate <= StartDate.AddYears(1).AddDays(-1)`. Using the calendar instead of "365 days" handles leap years without a special case: a cover starting 2027-03-01 may end 2028-02-29, which is 366 days.
 
-**Start date today is allowed (D5.4).** The spec only forbids the past. "Today" is the UTC date: `DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime)`.
+**Start date today is allowed (D5.4).** The spec only forbids the past.
 
-**Known limitation.** Between local midnight and 01:00 (02:00 in summer) in Norway, the UTC date is still yesterday. During that hour a Norwegian user could create a cover starting "yesterday" by their own calendar. The rule is lenient, never strict: it never rejects a valid local today. Fix if needed: a business time zone (`Europe/Oslo`) in config.
+**Whose "today" (D30).** Stored dates have no time zone, but "today" does: "now" is a moment, and turning a moment into a date needs a calendar. At any moment, two dates are in use around the world.
+- First version: the UTC date. Between midnight and 01:00 (02:00 in summer) in Oslo, UTC is still on yesterday, so a cover starting yesterday by Oslo's calendar was accepted: backdating by a day. West of UTC it was the opposite: in New York after 19:00 the UTC date is already tomorrow, so a valid start of today was rejected.
+- Now: the date in the business time zone, `BusinessTimeZone` = `Europe/Oslo` in `appsettings.json`. `BusinessTimeProvider` is the system clock with that zone as its `LocalTimeZone`, and the validator compares with `DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime)`. The validator doesn't know which zone it is.
+- The server decides the zone. Rejected: a time zone sent by the client. A client claiming to be in UTC+14 would get a day of backdating again.
+- Customers elsewhere follow the insurer's calendar, which is how policy dates are normally defined. With several markets, the zone would belong to the market or the policy.
+- Audit timestamps still use `GetUtcNow()`: they record moments, and a UTC moment is the same everywhere.
+
+**1 year from 29 February.** `AddYears(1)` on 2028-02-29 gives 2029-02-28, so the latest end is 2029-02-27: 365 days, like any year without a 29 February. Reading the anniversary as 1 March instead would allow 366 days; it's a one-line change if the business prefers it.
 
 ---
 
@@ -312,7 +319,7 @@ Each expected value is derived from the README by hand, never from running the c
 
 **Problem.** "Start date not in the past" depends on the current date. With `DateTime.UtcNow` a test that passes today fails tomorrow.
 
-**Decision.** Inject `TimeProvider`, the built-in abstraction since .NET 8. Production registers `TimeProvider.System`; tests use `FakeTimeProvider` (package `Microsoft.Extensions.TimeProvider.Testing`, 10.11.0 checked on net10.0) with a fixed date.
+**Decision.** Inject `TimeProvider`, the built-in abstraction since .NET 8. Production registers `BusinessTimeProvider` (the system clock with the business time zone, D30); tests use `FakeTimeProvider` (package `Microsoft.Extensions.TimeProvider.Testing`, 10.11.0 checked on net10.0) with a fixed moment and `SetLocalTimeZone(Europe/Oslo)`.
 
 ---
 

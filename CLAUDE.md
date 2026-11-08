@@ -22,7 +22,7 @@ Ivan's take-home for Insurance Technology Solutions. The task is in `docs/README
 - No MediatR, no AutoMapper, no generic repository. Hand-written mapping.
 - One project, layered by folders: `Api` → `Application` → `Domain`; `Infrastructure` implements `Application` interfaces (D1).
 - No comments that restate the code. XML doc comments on public endpoints are wanted (Swagger).
-- `DateOnly` for calendar dates, UTC `DateTime` for timestamps (D7). Get "now" from the injected `TimeProvider`, never `DateTime.Now`/`UtcNow`.
+- `DateOnly` for calendar dates, UTC `DateTime` for timestamps (D7). Get "now" from the injected `TimeProvider`, never `DateTime.Now`/`UtcNow`: `GetUtcNow()` for moments, `GetLocalNow()` for "today" in the business time zone (D30).
 
 ## SOLID is mandatory
 

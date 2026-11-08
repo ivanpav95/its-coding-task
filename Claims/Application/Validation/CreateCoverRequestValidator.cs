@@ -8,7 +8,7 @@ public class CreateCoverRequestValidator : AbstractValidator<CreateCoverRequest>
     public CreateCoverRequestValidator(TimeProvider timeProvider)
     {
         RuleFor(r => r.StartDate)
-            .GreaterThanOrEqualTo(_ => DateOnly.FromDateTime(timeProvider.GetUtcNow().UtcDateTime))
+            .GreaterThanOrEqualTo(_ => DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime))
             .WithMessage("Start date can't be in the past.");
 
         RuleFor(r => r.EndDate)

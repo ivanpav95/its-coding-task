@@ -6,6 +6,7 @@ using Claims.Application.Validation;
 using FluentValidation;
 using Claims.Infrastructure.Auditing;
 using Claims.Infrastructure.Persistence;
+using Claims.Infrastructure.Time;
 using Microsoft.EntityFrameworkCore;
 using MongoDB.Driver;
 using System.Text.Json.Serialization;
@@ -50,7 +51,9 @@ builder.Services.AddSingleton(services => services.GetRequiredService<Channel<Au
 builder.Services.AddSingleton<IAuditer, ChannelAuditer>();
 builder.Services.AddHostedService<AuditWriter>();
 
-builder.Services.AddSingleton(TimeProvider.System);
+var businessTimeZone = TimeZoneInfo.FindSystemTimeZoneById(
+    builder.Configuration.GetRequiredSection("BusinessTimeZone").Value!);
+builder.Services.AddSingleton<TimeProvider>(new BusinessTimeProvider(businessTimeZone));
 builder.Services.AddSingleton<IValidator<CreateCoverRequest>, CreateCoverRequestValidator>();
 builder.Services.AddSingleton<IValidator<CreateClaimRequest>, CreateClaimRequestValidator>();
 

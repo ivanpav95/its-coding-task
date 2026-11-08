@@ -13,6 +13,9 @@ public class CreateCoverRequestValidatorTests
 
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2027, 1, 10, 12, 0, 0, TimeSpan.Zero));
 
+    public CreateCoverRequestValidatorTests() =>
+        _time.SetLocalTimeZone(TimeZoneInfo.FindSystemTimeZoneById("Europe/Oslo"));
+
     private TestValidationResult<CreateCoverRequest> Validate(DateOnly start, DateOnly end, CoverType type = CoverType.Yacht) =>
         new CreateCoverRequestValidator(_time).TestValidate(new CreateCoverRequest(start, end, type));
 
@@ -29,10 +32,17 @@ public class CreateCoverRequestValidatorTests
     }
 
     [Fact]
-    public void Today_is_the_UTC_date()
+    public void After_midnight_in_Oslo_yesterday_is_rejected_although_UTC_is_still_on_it()
     {
-        // 00:30 on 11 January in Oslo is still 10 January in UTC, so a start on the 10th is accepted (D5.4).
         _time.SetUtcNow(new DateTimeOffset(2027, 1, 10, 23, 30, 0, TimeSpan.Zero));
+
+        Validate(Today, Today.AddDays(10)).ShouldHaveValidationErrorFor(r => r.StartDate);
+    }
+
+    [Fact]
+    public void Before_midnight_in_Oslo_today_is_still_valid()
+    {
+        _time.SetUtcNow(new DateTimeOffset(2027, 1, 10, 22, 30, 0, TimeSpan.Zero));
 
         Validate(Today, Today.AddDays(10)).ShouldNotHaveAnyValidationErrors();
     }

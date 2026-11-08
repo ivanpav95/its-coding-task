@@ -42,8 +42,10 @@ public sealed class ClaimsApiFactory : WebApplicationFactory<Program>, IAsyncLif
                 ["ConnectionStrings:Claims"] = _mongoDb.GetConnectionString()
             }));
 
-        builder.ConfigureTestServices(services =>
-            services.AddSingleton<TimeProvider>(new FakeTimeProvider(new DateTimeOffset(Now))));
+        var time = new FakeTimeProvider(new DateTimeOffset(Now));
+        time.SetLocalTimeZone(TimeZoneInfo.FindSystemTimeZoneById("Europe/Oslo"));
+
+        builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(time));
     }
 
     public override async ValueTask DisposeAsync()
