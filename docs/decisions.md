@@ -21,7 +21,7 @@ Status: ✅ done · 🔧 decided, not built yet
 
 ---
 
-## 2. One project, layered by folders (D1) ✅ folders · 🔧 contents
+## 2. One project, layered by folders (D1) ✅
 
 **Problem.** Controllers did data access, auditing, premium calculation and id generation. Nothing could be tested without HTTP and two databases.
 
@@ -29,10 +29,10 @@ Status: ✅ done · 🔧 decided, not built yet
 
 | Folder           | Contains                                                                                |
 | ---------------- | --------------------------------------------------------------------------------------- |
-| `Api`            | Controllers, request/response DTOs. Maps HTTP to service calls and back.                 |
-| `Application`    | `ClaimService`, `CoverService`, repository interfaces, `IAuditer`, validators.          |
-| `Domain`         | `Claim`, `Cover`, enums, premium calculator.                                            |
-| `Infrastructure` | Mongo repositories (EF Core provider), SQL Server audit context, audit background worker. |
+| `Api`            | Controllers and the JSON converter for times. Maps HTTP to service calls and back.     |
+| `Application`    | `ClaimService`, `CoverService`, request/response contracts (§4), repository interfaces, `IAuditer`, validators. |
+| `Domain`         | `Claim`, `Cover`, enums, `PremiumCalculator`, `CoverPeriod`.                            |
+| `Infrastructure` | Mongo repositories (EF Core provider), SQL Server audit context, audit background worker, `BusinessTimeProvider`. |
 
 Dependencies point inward: `Api` → `Application` → `Domain`; `Infrastructure` implements interfaces from `Application`.
 
@@ -40,7 +40,7 @@ Dependencies point inward: `Api` → `Application` → `Domain`; `Infrastructure
 
 **Why the premium calculator is in Domain.** It's a pure business rule: same input, same price, no I/O. Application orchestrates (load, call the rule, save, audit); Domain holds the rules.
 
-**Not used, on purpose.** MediatR (a request + handler + indirection per endpoint, for five endpoints), AutoMapper (see §4), a generic repository (see §3). The README asks for "less code, not more".
+**Not used, on purpose.** MediatR (a request + handler + indirection per endpoint, for five endpoints), AutoMapper (see §4), a generic repository (see §3). The README says "More code is not better code".
 
 **SOLID is a hard rule, not a goal.** The README says "Adhere to the SOLID principles", so every step must keep all five; `CLAUDE.md` lists what each letter means in this codebase. In practice:
 
@@ -80,6 +80,8 @@ Dependencies point inward: `Api` → `Application` → `Domain`; `Infrastructure
 - Every boundary between layers is an interface, so the dependency inversion rule reads the same everywhere: Api → `I…Service`, Application → `I…Repository` / `IAuditer`.
 
 **Trade-off.** Two interfaces with exactly one implementation each. The alternative was concrete services: their own dependencies are already interfaces, so the services themselves would still be testable. We chose consistency and controller testability over two fewer files.
+
+**Later.** D27 decided against controller unit tests, so the remaining benefit is consistency: every layer boundary is an interface. Concrete services would be a defensible simplification.
 
 ## 3b. `IAuditer` before the services (D11) ✅
 
@@ -169,7 +171,7 @@ Some operations have more than one expected outcome:
 | Delete a claim    | deleted, not found              | `bool`                                       | 204, 404      |
 | Create a claim    | created, cover doesn't exist    | `CreateClaimResult` (`Created` / `CoverNotFound`) | 201, 400 |
 
-The controller maps each outcome with a `switch`, so every status code is visible in one place.
+The controller maps each outcome with a `switch`, so every status code is visible in one place. Since D18, `CreateClaimResult` is `Created` / `Invalid(errors)`: a missing cover is one of the invalid inputs.
 
 **Why not exceptions.** "Not found" and "has claims" are normal business outcomes, not failures. Exceptions for them hide the control flow (a reader can't see from the service signature what can come back), and they're slow. Exceptions stay for real failures, e.g. the database being down.
 
@@ -319,7 +321,7 @@ Each expected value is derived from the README by hand, never from running the c
 ## 12. Validation with FluentValidation, called explicitly (D2) ✅
 
 **Rules.**
-- Claim: `DamageCost <= 100_000`; created date within the related cover's period (inclusive).
+- Claim: `DamageCost <= 100_000`; created within the related cover's period. Since D31 (§9a), `Created` is a moment: `StartsAt <= Created < EndsAt`, and not in the future.
 - Cover: `StartDate` not before today (§10); `EndDate >= StartDate`; at most one year (§10).
 
 **Decision.** FluentValidation validators for the request DTOs, run with `ValidateAsync` from the services. No MVC auto-validation.
@@ -435,6 +437,8 @@ builder.Services.AddDbContext<ClaimsContext>((services, options) =>
 - The database name is read once with `GetRequiredSection`, which fails at startup with a clear message if the setting is missing.
 - This also removes the template's round trip `client.GetDatabase(...)` → `database.Client`.
 
+**Since D29.** The connection string comes from configuration: `new MongoClient(RequiredConnectionString("Claims"))`.
+
 ---
 
 ## 16. Audit database name from configuration (R3) ✅
@@ -490,13 +494,13 @@ var sql = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
 
 ---
 
-## 19. Tests fail on a path with an apostrophe (R5) — deferred
+## 19. Tests fail on a path with an apostrophe (R5): worked around, not fixed in code
 
 **Problem.** On this machine `dotnet test` fails with `DirectoryNotFoundException`.
 
 **Why.** The `Microsoft.AspNetCore.Mvc.Testing` MSBuild target writes the app's content root using `$([System.IO.Path]::GetDirectoryName('<path>'))`. The `'` in `Ivan's PC` ends the quoted string early, so the expression is written to `MvcTestingAppManifest.json` unevaluated, and `WebApplicationFactory` can't find the folder.
 
-**Status.** Not a code bug; reviewers won't hit it. Until it's fixed, set `ASPNETCORE_TEST_CONTENTROOT_CLAIMS` to the `Claims` folder (verified: the test passes), or clone to a path without `'`.
+**Status.** Not a code bug; reviewers won't hit it. `ASPNETCORE_TEST_CONTENTROOT_CLAIMS` is set to the `Claims` folder for the Windows user, so plain `dotnet test` and the IDE's test runner work on this machine. Elsewhere: set the same variable, or clone to a path without `'`.
 
 ---
 
@@ -525,13 +529,15 @@ var sql = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
 
 **What the service tests prove.** Every outcome of every use case, and the side effects that go with it: a valid cover is stored with the premium from the README (10 Yacht days = 13,750) and audited once; anything rejected (invalid input, unknown cover, a claim outside the period, a cover that still has claims, an unknown id) stores nothing and audits nothing; a claim on the first and last day of the cover is accepted, the day before and after is not. Checked by breaking the end-date check (`>` → `>=`): the boundary test fails.
 
+Since D31 the claim tests use moments: a claim at `StartsAt` and a minute before `EndsAt` is accepted; 10:00 on the first day of a cover bought at 18:00, a minute before `StartsAt`, and `EndsAt` are rejected. Removing the `StartsAt` check makes the two backdating tests fail.
+
 **No controller unit tests (D27).** Controllers only map results to status codes. The integration tests (4c) check exactly that through routing, model binding, JSON and `ProblemDetails`, which a controller unit test would skip.
 
 **Integration tests (4c).**
 - `ClaimsApiFactory` is a `WebApplicationFactory<Program>` shared by every test class through an xUnit collection fixture. The factory starts both containers once (Testcontainers, D29) and passes their connection strings to the app, so one factory means one start (about 20 s) instead of one per test.
-- `ConfigureTestServices` replaces `TimeProvider` with a `FakeTimeProvider` fixed at 2030-01-10 12:00 UTC. Dates in the tests never depend on when they run, and the audit timestamps can be compared exactly.
+- `ConfigureTestServices` replaces `TimeProvider` with a `FakeTimeProvider` fixed at 2030-01-10 12:00 UTC, with `Europe/Oslo` as its local time zone (D30). Dates in the tests never depend on when they run, and the audit timestamps can be compared exactly.
 - Each test creates its own cover and claim, so the tests don't depend on order or on each other's data.
-- What they check, through routing, model binding, JSON and `ProblemDetails`: a created cover can be read back from its `Location` header with the README premium; 400 problems for an invalid cover and for a claim on an unknown cover, with the error on the right field; the delete flow 409 → 204 → 204 → 404; `compute` as a GET; a created claim appears in `GET /Claims` (the template's TODO); 404 for an unknown claim.
+- What they check, through routing, model binding, JSON and `ProblemDetails`: a created cover can be read back from its `Location` header with the README premium; 400 problems for an invalid cover and for a claim on an unknown cover, with the error on the right field; the delete flow 409 → 204 → 204 → 404; `compute` as a GET; a created claim appears in `GET /Claims` (the template's TODO); 404 for an unknown claim. Since D31: a cover starting today has `startsAt` = now; a claim three hours before the cover was bought, and a time without an offset, both give 400.
 - `AuditingTests` is the end-to-end check for `AuditWriter`: after POST and DELETE of a cover and a claim, the four rows appear in SQL Server with the fixed timestamp. Audits are written in the background, so it polls a fresh `AuditContext` every 100 ms for up to 5 s instead of sleeping a fixed time.
 - Not covered: the drain on graceful shutdown. The factory now owns the containers (D29), so a test could stop the host and then read the rows; it isn't written yet.
 

@@ -5,8 +5,7 @@ Read this file and `docs/findings.md` before doing anything.
 
 ## Who and why
 
-- Candidate: Ivan, senior .NET developer, applying to Insurance Technology Solutions (Norway).
-- This repo is their take-home task (`docs/README.md`). AI tools are allowed.
+- This repo is a take-home task (`docs/README.md`). AI tools are allowed.
 - Target: share the repo and a pull request by **Monday morning**. A technical interview will walk through the solution.
 - **Ivan must be able to explain every line and decision.** That matters more than speed.
 
@@ -14,12 +13,12 @@ Read this file and `docs/findings.md` before doing anything.
 
 Working rules, code rules and environment notes are in `CLAUDE.md` at the repo root (loaded automatically by Claude Code).
 
-- Branch: `feature/claims-refactor`. Final step is a PR into `main` with a written explanation.
+- Branch: `feature/claims-refactor`. Pull request #1 into `main` is open, with a written explanation.
 - Local databases: `docker compose up -d --wait`; integration tests start their own containers (D29). The first pull of the SQL Server image (~1.5 GB) is slow.
 
 ## Current state
 
-Done (local only, not pushed; see `git log`):
+Done (pushed; see `git log` and PR #1):
 
 - Audit fields `required` (R2), Task 1 step 1 (folders), working notes and `CLAUDE.md`.
 - Small items: R3 (audit database `ClaimsAudit`), R4 (`.gitattributes`), `MongoClient` singleton.
@@ -33,17 +32,21 @@ Done (local only, not pushed; see `git log`):
 - Task 3: `ChannelAuditer` (singleton `IAuditer`) queues `AuditMessage`s on a bounded channel; `AuditWriter` (`BackgroundService`) saves them, one scope per message (D4, D21–D25). The old `Auditer` is deleted. 3 unit tests.
 - Task 4a: `Claims.Tests` renamed to `Claims.IntegrationTests`; R9 fixed.
 - Task 4b: `CoverServiceTests` (7) and `ClaimServiceTests` (7) with hand-written fakes (D26). `Claims.UnitTests` has 56 tests.
-- Task 4c: 8 integration tests in `Claims.IntegrationTests` on one shared app start with a fixed clock; error responses now `application/problem+json` and Swagger lists exact media types (D28). **Task 4 is complete.** 64 tests in total.
+- Task 4c: 8 integration tests in `Claims.IntegrationTests` on one shared app start with a fixed clock; error responses now `application/problem+json` and Swagger lists exact media types (D28). **Task 4 is complete.** 64 tests at that point.
+- Databases out of `Program.cs` (R1, D29): the app reads `ConnectionStrings:Audit` and `ConnectionStrings:Claims`; `docker-compose.yml` with volumes for local runs; Testcontainers moved into `ClaimsApiFactory`.
+- Root `README.md` (run, test, where the databases come from, structure) and the PR description.
+- Business time zone (D30): "today" is the date in `Europe/Oslo` (`BusinessTimeZone` in config), through `BusinessTimeProvider` and `GetLocalNow()`. With UTC, a cover could start "yesterday" for an hour or two after midnight in Oslo.
+- No backdating (D31): the cover keeps its dates and gets server-set `StartsAt` (later of now and midnight on `StartDate`) and `EndsAt` (midnight after `EndDate`), in `Domain/CoverPeriod`. `Claim.Created` is the moment of the damage (`DateTimeOffset`, offset required by `RequireOffsetDateTimeOffsetConverter`): `StartsAt <= Created < EndsAt`, not in the future.
 
-Build: 0 warnings, no vulnerable packages (R8 fixed).
+Build: 0 warnings, no vulnerable packages (R8 fixed). Tests: 79 (69 unit, 10 integration).
 
-Notes for the next steps:
+Notes:
 
-- D7–D9 are decided: `DateOnly` for cover dates and `Claim.Created` (step 4), 409 when deleting a cover that still has claims (step 6, uses `IClaimRepository.AnyForCoverAsync`), `compute` becomes GET (step 6). R5 is deferred; Ivan solves it later.
+- D7 still holds for the cover dates; since D31, `Claim.Created` is a moment again. R5 (the `'` in the local path) is worked around with a user environment variable, not fixed in code.
 
-## Remaining plan
+## Plan
 
-Decisions behind every step are in `docs/findings.md` (D1–D14, D5.x). Every step must keep the SOLID rules in `CLAUDE.md`. Do the steps in this order:
+Decisions behind every step are in `docs/findings.md` (D1–D31, D5.x) and explained in `docs/decisions.md`. Every step must keep the SOLID rules in `CLAUDE.md`. The steps were done in this order:
 
 **Task 1: layering.** Step numbers are kept as originally planned (other docs refer to them), but the order changed: step 5 was done before step 3 (D11). Execution order:
 
@@ -66,8 +69,8 @@ Decisions behind every step are in `docs/findings.md` (D1–D14, D5.x). Every st
 
 - FluentValidation validators for requests, run explicitly with `ValidateAsync` from the services (no auto-validation).
 - Claim: `DamageCost <= 100_000`. "Created within cover period" is checked in `ClaimService` after loading the cover.
-- Cover: `StartDate` not before today (UTC date, today allowed), `EndDate >= StartDate`, `EndDate <= StartDate.AddYears(1).AddDays(-1)`.
-- Inject `TimeProvider` (`TimeProvider.System` in DI, `FakeTimeProvider` in tests).
+- Cover: `StartDate` not before today (today allowed; the date in the business time zone since D30), `EndDate >= StartDate`, `EndDate <= StartDate.AddYears(1).AddDays(-1)`.
+- Inject `TimeProvider` (`BusinessTimeProvider` in DI since D30, `FakeTimeProvider` in tests).
 
 **Task 3: async auditing (D4)** ✅ done (D21–D25).
 
@@ -80,11 +83,18 @@ Decisions behind every step are in `docs/findings.md` (D1–D14, D5.x). Every st
 - ✅ 4b: service unit tests with hand-written fakes and real validators (D26); no controller unit tests (D27).
 - ✅ 4c: integration tests on the real app: one shared `WebApplicationFactory` (collection fixture), `FakeTimeProvider` via `ConfigureTestServices`; cover round trip (201 + `Location` → GET), unknown cover → 400 on `CoverId`, delete flow 409 → 204 → 204 → 404, `GET /Claims` contains the created claim, audit rows appear in SQL Server (poll up to 5 s). Not covered: the shutdown drain. Found and fixed: error responses had the wrong media type (D28).
 
+**Databases out of `Program.cs` (R1, D29)** ✅ done.
+
+- The app only knows two connection strings and starts no containers. Local: `docker-compose.yml` with volumes; connection strings in `appsettings.Development.json`. Integration tests: Testcontainers in `ClaimsApiFactory`.
+- Migrations still run at startup; with several instances they would move to the deployment pipeline.
+
+**No backdating (D30, D31)** ✅ done, found while reviewing the solution.
+
+- D30: "today" in the business time zone (`Europe/Oslo`), decided by the server, never by the client.
+- D31: a date says which days a cover includes, a moment says from when it is in force. `StartsAt`/`EndsAt` set by the server; claims carry the moment of the damage with a required offset; future claims rejected. The first day is charged in full.
+
 **Finish**
 
-- README section: how to run, design decisions and assumptions (copy from `docs/findings.md`).
-- PR description: where to look first, trade-offs, assumptions, what Ivan wants to discuss.
-- AI artifacts (encouraged by the README): keep `docs/handoff.md` and `docs/findings.md` in the repo and mention them in the PR. Review their wording for a reviewer audience first.
-- Hosting: databases come from configuration (D29). Azure deployment after submission, on a separate branch, before the demo (2–5 days after Monday). The PR names it as the next step without promising a URL.
-- Mock interview: quiz Ivan on his own solution.
-
+- ✅ README: how to run, how to test, where the databases come from, structure.
+- ✅ PR description: where to look first, trade-offs, assumptions, other fixes, what's not in scope.
+- ✅ AI artifacts (encouraged by the README): `CLAUDE.md`, `docs/handoff.md`, `docs/findings.md` and `docs/decisions.md` stay in the repo and are mentioned in the PR.
