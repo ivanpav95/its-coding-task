@@ -415,6 +415,8 @@ var sql = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
 
 `Migrate()` creates the database if it doesn't exist. `SqlConnectionStringBuilder` instead of string concatenation, because it handles escaping and keys that are already present.
 
+**Since D29.** The app no longer starts the container, so `SqlServer:DatabaseName` is gone: the database is part of `ConnectionStrings:Audit` (`Database=ClaimsAudit`). The integration test factory still uses `SqlConnectionStringBuilder` to add `InitialCatalog` to the Testcontainers connection string.
+
 ---
 
 ## 17. Databases come from configuration, not from `Program.cs` (R1, D29) ✅
@@ -489,12 +491,12 @@ var sql = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
 **No controller unit tests (D27).** Controllers only map results to status codes. The integration tests (4c) check exactly that through routing, model binding, JSON and `ProblemDetails`, which a controller unit test would skip.
 
 **Integration tests (4c).**
-- `ClaimsApiFactory` is a `WebApplicationFactory<Program>` shared by every test class through an xUnit collection fixture. `Program.cs` starts both containers per factory, so one factory means one start (about 20 s) instead of one per test.
+- `ClaimsApiFactory` is a `WebApplicationFactory<Program>` shared by every test class through an xUnit collection fixture. The factory starts both containers once (Testcontainers, D29) and passes their connection strings to the app, so one factory means one start (about 20 s) instead of one per test.
 - `ConfigureTestServices` replaces `TimeProvider` with a `FakeTimeProvider` fixed at 2030-01-10 12:00 UTC. Dates in the tests never depend on when they run, and the audit timestamps can be compared exactly.
 - Each test creates its own cover and claim, so the tests don't depend on order or on each other's data.
 - What they check, through routing, model binding, JSON and `ProblemDetails`: a created cover can be read back from its `Location` header with the README premium; 400 problems for an invalid cover and for a claim on an unknown cover, with the error on the right field; the delete flow 409 → 204 → 204 → 404; `compute` as a GET; a created claim appears in `GET /Claims` (the template's TODO); 404 for an unknown claim.
 - `AuditingTests` is the end-to-end check for `AuditWriter`: after POST and DELETE of a cover and a claim, the four rows appear in SQL Server with the fixed timestamp. Audits are written in the background, so it polls a fresh `AuditContext` every 100 ms for up to 5 s instead of sleeping a fixed time.
-- Not covered: the drain on graceful shutdown. The containers' lifetime is tied to `Program.cs`, so checking rows after the host stopped would need extra plumbing.
+- Not covered: the drain on graceful shutdown. The factory now owns the containers (D29), so a test could stop the host and then read the rows; it isn't written yet.
 
 **Found by these tests: error responses had the wrong media type (D28).**
 - `[Produces("application/json")]` was added in Task 1 step 6 to tidy Swagger. It's not documentation: it's a result filter that overwrites the content type of every `ObjectResult`, including `ProblemDetails`. Errors went out as `application/json` instead of `application/problem+json` (RFC 9457). The body was a correct `ProblemDetails`; only the label was wrong, so clients that recognise errors by media type (generated SDKs, gateways) would miss them.
