@@ -29,12 +29,40 @@ public class ClaimsEndpointTests(ClaimsApiFactory factory)
     public async Task A_claim_for_an_unknown_cover_is_a_validation_problem()
     {
         var response = await _client.PostClaimAsync(
-            new CreateClaimRequest("unknown", ClaimsApiFactory.Today, "Hull damage", ClaimType.Collision, 5_000m));
+            new CreateClaimRequest("unknown", ClaimsApiFactory.Now, "Hull damage", ClaimType.Collision, 5_000m));
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
         var problem = await response.ReadAsync<ValidationProblemDetails>();
         Assert.Contains(nameof(CreateClaimRequest.CoverId), problem.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task Damage_before_the_cover_was_bought_is_rejected_even_on_its_first_day()
+    {
+        var cover = await _client.CreateCoverAsync(); // starts today, so in force from Now
+        var threeHoursEarlier = ClaimsApiFactory.Now.AddHours(-3);
+
+        var response = await _client.PostClaimAsync(
+            new CreateClaimRequest(cover.Id, threeHoursEarlier, "Hull damage", ClaimType.Collision, 5_000m));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.ReadAsync<ValidationProblemDetails>();
+        Assert.Contains(nameof(CreateClaimRequest.Created), problem.Errors.Keys);
+    }
+
+    [Fact]
+    public async Task A_time_without_an_offset_is_rejected()
+    {
+        var cover = await _client.CreateCoverAsync();
+        var json = $$"""{"coverId":"{{cover.Id}}","created":"2030-01-10T12:00:00","name":"Hull damage","type":"Collision","damageCost":5000}""";
+
+        var response = await _client.PostAsync("/Claims",
+            new StringContent(json, System.Text.Encoding.UTF8, "application/json"), CancellationToken);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.ReadAsync<ValidationProblemDetails>();
+        Assert.Contains(problem.Errors, error => error.Key.Contains("created", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]

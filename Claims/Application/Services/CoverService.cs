@@ -10,7 +10,8 @@ public class CoverService(
     ICoverRepository covers,
     IClaimRepository claims,
     IAuditer auditer,
-    IValidator<CreateCoverRequest> validator) : ICoverService
+    IValidator<CreateCoverRequest> validator,
+    TimeProvider timeProvider) : ICoverService
 {
     public async Task<IReadOnlyList<CoverResponse>> GetAllAsync(CancellationToken cancellationToken = default)
     {
@@ -37,6 +38,8 @@ public class CoverService(
             Id = Guid.NewGuid().ToString(),
             StartDate = request.StartDate,
             EndDate = request.EndDate,
+            StartsAt = CoverPeriod.StartsAt(request.StartDate, timeProvider.GetUtcNow(), timeProvider.LocalTimeZone).UtcDateTime,
+            EndsAt = CoverPeriod.EndsAt(request.EndDate, timeProvider.LocalTimeZone).UtcDateTime,
             Type = request.Type,
             Premium = PremiumCalculator.Calculate(request.StartDate, request.EndDate, request.Type)
         };

@@ -12,6 +12,8 @@ public class CoverServiceTests
 {
     private static readonly DateOnly Today = new(2027, 1, 10);
 
+    private static readonly DateTimeOffset Now = new(2027, 1, 10, 12, 0, 0, TimeSpan.Zero);
+
     private readonly InMemoryCoverRepository _covers = new();
     private readonly InMemoryClaimRepository _claims = new();
     private readonly RecordingAuditer _auditer = new();
@@ -21,8 +23,9 @@ public class CoverServiceTests
 
     public CoverServiceTests()
     {
-        var time = new FakeTimeProvider(new DateTimeOffset(2027, 1, 10, 12, 0, 0, TimeSpan.Zero));
-        _service = new CoverService(_covers, _claims, _auditer, new CreateCoverRequestValidator(time));
+        var time = new FakeTimeProvider(Now);
+        time.SetLocalTimeZone(TimeZoneInfo.FindSystemTimeZoneById("Europe/Oslo"));
+        _service = new CoverService(_covers, _claims, _auditer, new CreateCoverRequestValidator(time), time);
     }
 
     [Fact]
@@ -35,6 +38,16 @@ public class CoverServiceTests
         Assert.Equal(CoverResponse.From(stored), created.Cover);
         Assert.Equal(13_750m, stored.Premium); // 10 days at the Yacht day rate of 1,375
         Assert.Equal([new Audit("Cover", stored.Id, "POST")], _auditer.Audits);
+    }
+
+    [Fact]
+    public async Task A_cover_starting_today_is_in_force_from_now_until_midnight_after_its_end_date()
+    {
+        await _service.CreateAsync(new CreateCoverRequest(Today, Today.AddDays(9), CoverType.Yacht), CancellationToken);
+
+        var stored = Assert.Single(_covers.Stored);
+        Assert.Equal(Now.UtcDateTime, stored.StartsAt);
+        Assert.Equal(new DateTime(2027, 1, 19, 23, 0, 0, DateTimeKind.Utc), stored.EndsAt); // 20 January 00:00 in Oslo
     }
 
     [Fact]
@@ -77,7 +90,7 @@ public class CoverServiceTests
         {
             Id = "claim-1",
             CoverId = cover.Id,
-            Created = Today,
+            Created = Now.UtcDateTime,
             Name = "Hull damage",
             Type = ClaimType.Collision,
             DamageCost = 5_000m

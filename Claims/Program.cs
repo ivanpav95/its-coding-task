@@ -1,3 +1,4 @@
+using Claims.Api;
 using Claims.Application.Auditing;
 using Claims.Application.Contracts;
 using Claims.Application.Repositories;
@@ -24,6 +25,7 @@ builder.Services
     .AddJsonOptions(x =>
     {
         x.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        x.JsonSerializerOptions.Converters.Add(new RequireOffsetDateTimeOffsetConverter());
     });
 
 builder.Services.AddDbContext<AuditContext>(options =>

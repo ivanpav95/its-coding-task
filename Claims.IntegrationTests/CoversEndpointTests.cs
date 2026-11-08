@@ -22,6 +22,7 @@ public class CoversEndpointTests(ClaimsApiFactory factory)
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var created = await response.ReadAsync<CoverResponse>();
         Assert.Equal(13_750m, created.Premium); // 10 days at the Yacht day rate of 1,375
+        Assert.Equal(ClaimsApiFactory.Now, created.StartsAt); // starts today, so in force from the moment it was bought
 
         var read = await _client.GetAsync(response.Headers.Location, CancellationToken);
         Assert.Equal(HttpStatusCode.OK, read.StatusCode);

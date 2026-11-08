@@ -2,22 +2,37 @@ using Claims.Application.Contracts;
 using Claims.Application.Validation;
 using Claims.Domain;
 using FluentValidation.TestHelper;
+using Microsoft.Extensions.Time.Testing;
 using Xunit;
 
 namespace Claims.UnitTests;
 
 public class CreateClaimRequestValidatorTests
 {
+    private static readonly DateTimeOffset Now = new(2027, 1, 10, 12, 0, 0, TimeSpan.Zero);
+
     private static readonly CreateClaimRequest ValidRequest =
-        new("cover-1", new DateOnly(2027, 1, 10), "Hull damage", ClaimType.Collision, 5_000m);
+        new("cover-1", Now.AddHours(-2), "Hull damage", ClaimType.Collision, 5_000m);
 
     private static TestValidationResult<CreateClaimRequest> Validate(CreateClaimRequest request) =>
-        new CreateClaimRequestValidator().TestValidate(request);
+        new CreateClaimRequestValidator(new FakeTimeProvider(Now)).TestValidate(request);
 
     [Fact]
     public void A_complete_request_is_valid()
     {
         Validate(ValidRequest).ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void A_claim_dated_now_is_valid()
+    {
+        Validate(ValidRequest with { Created = Now }).ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Fact]
+    public void A_claim_dated_in_the_future_is_rejected()
+    {
+        Validate(ValidRequest with { Created = Now.AddMinutes(1) }).ShouldHaveValidationErrorFor(r => r.Created);
     }
 
     [Theory]

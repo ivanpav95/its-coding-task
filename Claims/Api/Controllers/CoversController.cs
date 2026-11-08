@@ -52,10 +52,12 @@ public class CoversController(ICoverService coverService) : ControllerBase
         return cover is null ? NotFound() : cover;
     }
 
-    /// <summary>Creates a cover. The id and the premium are set by the server.</summary>
+    /// <summary>Creates a cover. The id, the premium and the moments it is in force are set by the server.</summary>
     /// <remarks>
-    /// The start date can't be in the past (today, in UTC, is allowed). Both dates are part of the period,
-    /// which can be at most one calendar year.
+    /// The start date can't be in the past; today, in the insurer's time zone, is allowed. Both dates are part of
+    /// the period, which can be at most one calendar year. A cover starting today is in force from the moment it is
+    /// created (<c>startsAt</c>), a later one from midnight on its start date; it ends at midnight after its end date
+    /// (<c>endsAt</c>).
     /// </remarks>
     /// <response code="201">The cover was created; <c>Location</c> points to it.</response>
     /// <response code="400">The request is invalid.</response>

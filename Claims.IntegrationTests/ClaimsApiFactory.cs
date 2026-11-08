@@ -19,7 +19,7 @@ public sealed class ClaimsApiFactory : WebApplicationFactory<Program>, IAsyncLif
 {
     public static readonly DateOnly Today = new(2030, 1, 10);
 
-    public static readonly DateTime Now = new(2030, 1, 10, 12, 0, 0, DateTimeKind.Utc);
+    public static readonly DateTimeOffset Now = new(2030, 1, 10, 12, 0, 0, TimeSpan.Zero);
 
     private readonly MsSqlContainer _sqlServer = new MsSqlBuilder("mcr.microsoft.com/mssql/server:2022-latest").Build();
 
@@ -42,7 +42,7 @@ public sealed class ClaimsApiFactory : WebApplicationFactory<Program>, IAsyncLif
                 ["ConnectionStrings:Claims"] = _mongoDb.GetConnectionString()
             }));
 
-        var time = new FakeTimeProvider(new DateTimeOffset(Now));
+        var time = new FakeTimeProvider(Now);
         time.SetLocalTimeZone(TimeZoneInfo.FindSystemTimeZoneById("Europe/Oslo"));
 
         builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(time));

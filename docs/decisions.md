@@ -217,6 +217,36 @@ The controller maps each outcome with a `switch`, so every status code is visibl
 
 **Cost.** The API contract changes (`"2026-12-01"` instead of a timestamp). Existing documents would need migrating; there are none, because Testcontainers starts empty.
 
+**Since D31.** `Claim.Created` is a moment again (when the damage happened), because "not before the cover started" needs a time. The cover dates stay `DateOnly`.
+
+---
+
+## 9a. No backdating: covers and claims in moments (D31) ✅
+
+**Problem.** Dates alone can't stop backdating within a day. A cover bought at 18:00 with a start date of today covered the whole day, so a claim for damage at 10:00 that morning was accepted: insurance bought after the damage happened. Two different rules were mixed: "a cover can't start on a past date" (dates can enforce it) and "a cover can't be in force at a past moment" (needs a time).
+
+**Decision.** A date says which days are covered; a moment says from and until when.
+- The cover keeps `StartDate`/`EndDate` (`DateOnly`). The premium, "at most one year" and the cover request don't change.
+- When the cover is created, the server sets two moments (UTC), in `Domain/CoverPeriod`:
+  - `StartsAt` = the later of *now* and midnight on `StartDate` in the business time zone. A cover starting today is in force from the moment it is bought; a later one from midnight.
+  - `EndsAt` = midnight after `EndDate` in the business time zone, so the whole last day is covered.
+- `Claim.Created` is the moment the damage happened: `DateTimeOffset` in the API, UTC `DateTime` in the database. A claim must satisfy `StartsAt <= Created < EndsAt`, and can't be in the future.
+- A time without a UTC offset (`"2026-11-09T10:00:00"`) is rejected with a 400 by `RequireOffsetDateTimeOffsetConverter`. Otherwise System.Text.Json reads it in the server's time zone, the same mistake as R6.
+
+**Why both moments are stored.** `StartsAt` depends on when the cover was bought, so it can't be derived later. `EndsAt` could be derived from `EndDate`, but only while the configured time zone never changes. Storing it fixes a sold policy's period exactly, and the claim check is a plain comparison with no time zone.
+
+**Rejected.**
+- Moments only (`DateTimeOffset` start and end in the request): the premium and "one year" count days, so partial days would need a rounding rule the task doesn't give.
+- Back to `DateTime`: it can't carry the client's offset, which is how R6 happened.
+- "Start must be tomorrow": stops same-day backdating, but is stricter than the task (today isn't the past).
+
+**Trade-offs.**
+- A cover bought at 18:00 for today is charged a full first day. That's usual in insurance, and it keeps the premium rules unchanged.
+- The claim contract changes: `created` needs a time and an offset.
+- Covers stored before this change have no `startsAt`/`endsAt`; in a real system they would need a migration (local data was reset).
+
+**Verified.** Unit tests for `CoverPeriod` (purchase moment, midnight in winter and summer, end), the service (claim at `StartsAt` and a minute before `EndsAt` accepted; 10:00 on the first day of a cover bought at 18:00, a minute before `StartsAt`, and `EndsAt` rejected), the validator (now accepted, a minute later rejected) and the converter. Integration tests send a claim three hours before the purchase and a time without an offset: both 400. Removing the `StartsAt` check makes the two backdating tests fail. The running app gives the same answers.
+
 ---
 
 ## 10. Date rules (D5.1, D5.2, D5.4) ✅

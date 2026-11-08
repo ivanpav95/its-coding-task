@@ -35,7 +35,7 @@ public static class Api
     public static async Task<ClaimResponse> CreateClaimAsync(this HttpClient client, string coverId)
     {
         var response = await client.PostClaimAsync(
-            new CreateClaimRequest(coverId, ClaimsApiFactory.Today, "Hull damage", ClaimType.Collision, 5_000m));
+            new CreateClaimRequest(coverId, ClaimsApiFactory.Now, "Hull damage", ClaimType.Collision, 5_000m));
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         return (await response.Content.ReadFromJsonAsync<ClaimResponse>(Json, CancellationToken))!;
     }

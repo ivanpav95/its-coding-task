@@ -38,17 +38,18 @@ public class ClaimService(
             return Invalid(nameof(request.CoverId), $"Cover '{request.CoverId}' does not exist.");
         }
 
-        if (request.Created < cover.StartDate || request.Created > cover.EndDate)
+        var created = request.Created.UtcDateTime;
+        if (created < cover.StartsAt || created >= cover.EndsAt)
         {
             return Invalid(nameof(request.Created),
-                $"Created date must be within the cover period ({cover.StartDate:yyyy-MM-dd} to {cover.EndDate:yyyy-MM-dd}).");
+                $"The claim must be within the cover period ({cover.StartsAt:yyyy-MM-dd HH:mm} to {cover.EndsAt:yyyy-MM-dd HH:mm} UTC).");
         }
 
         var claim = new Claim
         {
             Id = Guid.NewGuid().ToString(),
             CoverId = request.CoverId,
-            Created = request.Created,
+            Created = created,
             Name = request.Name,
             Type = request.Type,
             DamageCost = request.DamageCost

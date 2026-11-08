@@ -6,7 +6,8 @@ public class Claim
 
     public required string CoverId { get; init; }
 
-    public DateOnly Created { get; init; }
+    /// <summary>When the damage happened, in UTC.</summary>
+    public DateTime Created { get; init; }
 
     public required string Name { get; init; }
 

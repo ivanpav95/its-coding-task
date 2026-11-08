@@ -29,7 +29,7 @@ public class AuditingTests(ClaimsApiFactory factory)
 
         Assert.Equal(["DELETE", "POST"], coverAudits.Select(audit => audit.HttpRequestType).Order());
         Assert.Equal(["DELETE", "POST"], claimAudits.Select(audit => audit.HttpRequestType).Order());
-        Assert.All(coverAudits.Concat(claimAudits), audit => Assert.Equal(ClaimsApiFactory.Now, audit.Created));
+        Assert.All(coverAudits.Concat(claimAudits), audit => Assert.Equal(ClaimsApiFactory.Now.UtcDateTime, audit.Created));
     }
 
     /// <summary>Audits are saved asynchronously, so poll until the expected rows are there.</summary>
