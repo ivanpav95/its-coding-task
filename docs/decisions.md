@@ -507,7 +507,7 @@ var sql = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
 
 **Why.** The `Microsoft.AspNetCore.Mvc.Testing` MSBuild target writes the app's content root using `$([System.IO.Path]::GetDirectoryName('<path>'))`. The `'` in `Ivan's PC` ends the quoted string early, so the expression is written to `MvcTestingAppManifest.json` unevaluated, and `WebApplicationFactory` can't find the folder.
 
-**Status.** Not a code bug; reviewers won't hit it. `ASPNETCORE_TEST_CONTENTROOT_CLAIMS` is set to the `Claims` folder for the Windows user, so plain `dotnet test` and the IDE's test runner work on this machine. Elsewhere: set the same variable, or clone to a path without `'`.
+**Status.** Not a code bug; reviewers won't hit it. `ASPNETCORE_TEST_CONTENTROOT_CLAIMS_API` is set to the `Claims.Api` folder for the Windows user (the variable name follows the assembly name; it was `_CLAIMS` before the project split, D33), so plain `dotnet test` and the IDE's test runner work on this machine. Elsewhere: set the same variable, or clone to a path without `'`.
 
 ---
 

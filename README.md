@@ -8,7 +8,7 @@ You need the .NET 10 SDK and Docker.
 
 ```bash
 docker compose up -d --wait
-dotnet run --project Claims --launch-profile Claims
+dotnet run --project Claims.Api --launch-profile Claims.Api
 ```
 
 Swagger is at https://localhost:7052/swagger. The databases keep their data in Docker volumes:

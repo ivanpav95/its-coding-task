@@ -9,7 +9,7 @@
     }
   },
   "profiles": {
-    "Claims": {
+    "Claims.Api": {
       "commandName": "Project",
       "dotnetRunMessages": true,
       "launchBrowser": true,

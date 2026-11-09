@@ -38,13 +38,13 @@ The README says "Adhere to the SOLID principles." Every change must keep all fiv
 
 - Windows, .NET SDK 10 (`global.json`), Docker Desktop. The app reads its connection strings from configuration (D29). Locally, start the databases once with `docker compose up -d --wait`; they keep their data in volumes.
 - Tests run on xunit.v3 with Microsoft.Testing.Platform. `Claims.UnitTests` needs no Docker and runs in seconds: `dotnet test --project Claims.UnitTests`. `Claims.IntegrationTests` starts its own SQL Server and MongoDB with Testcontainers and runs the real app on them; it needs Docker, but not the compose containers.
-- The repo path contains `'` (`Ivan's PC`), which breaks `WebApplicationFactory` (R5). Ivan set `ASPNETCORE_TEST_CONTENTROOT_CLAIMS` for his Windows user, so plain `dotnet test` works in new shells. In a shell started before that, set it inline:
+- The repo path contains `'` (`Ivan's PC`), which breaks `WebApplicationFactory` (R5). Ivan sets `ASPNETCORE_TEST_CONTENTROOT_CLAIMS_API` (the name follows the assembly `Claims.Api`) for his Windows user, so plain `dotnet test` works in new shells. In a shell started before that, set it inline:
 
   ```bash
-  ASPNETCORE_TEST_CONTENTROOT_CLAIMS="$(pwd -W)/Claims" dotnet test
+  ASPNETCORE_TEST_CONTENTROOT_CLAIMS_API="$(pwd -W)/Claims.Api" dotnet test
   ```
 
-  PowerShell: `$env:ASPNETCORE_TEST_CONTENTROOT_CLAIMS = "$PWD\Claims"; dotnet test`
+  PowerShell: `$env:ASPNETCORE_TEST_CONTENTROOT_CLAIMS_API = "$PWD\Claims.Api"; dotnet test`
 
-- Run the app with `docker compose up -d --wait`, then `dotnet run --project Claims --launch-profile Claims`. The API is on `https://localhost:7052` (HTTP 5052 redirects); Swagger is at `/swagger`.
+- Run the app with `docker compose up -d --wait`, then `dotnet run --project Claims.Api --launch-profile Claims.Api`. The API is on `https://localhost:7052` (HTTP 5052 redirects); Swagger is at `/swagger`.
 - If the build fails with "file is locked by Claims", the app is still running (often from Visual Studio). Stop it first.
