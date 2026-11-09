@@ -187,6 +187,20 @@ The controller maps each outcome with a `switch`, so every status code is visibl
 
 **Why not a generic `Result<T>`.** One small type per operation names its real outcomes; a generic result type is a mini-framework for three call sites.
 
+### 6d. Unexpected errors are problem+json too (D34) ✅
+
+**Problem.** Expected outcomes are result types (D14), but an unexpected exception (a database down, a bug) gave an empty 500 outside Development, and in Development ASP.NET's developer exception page answered with the exception's message and stack trace. Every other error is `application/problem+json` (D28), so clients had one case without that shape.
+
+**Decision.** Two lines in `Claims.Api/Program.cs`: `builder.Services.AddProblemDetails()` and `app.UseExceptionHandler()`, first in the pipeline. The middleware logs the exception with its stack trace and returns a 500 `ProblemDetails` with a generic title, `status` and `traceId`. The `traceId` in the response finds the log entry.
+
+**Always on, also in Development (Ivan).** One error contract everywhere, and the integration tests, which run as Development, check what production sends. Cost: locally the stack trace is in the console log, not on a developer exception page.
+
+**No custom `IExceptionHandler`.** The built-in handler already logs and writes `ProblemDetails`. A custom one would only be needed to map specific exceptions to other status codes, which D14 avoids on purpose.
+
+**Not added.** `UseStatusCodePages()`, which would also give body-less responses (404 for an unknown URL, 405) a problem body. Related, but not exception handling. Not documented per endpoint in Swagger either: a 500 can come from anywhere.
+
+**Verified.** An integration test replaces `ICoverService` with one that throws: `GET /Covers` gives 500, `application/problem+json`, a `traceId`, and the exception message is not in the body. Without `UseExceptionHandler()` that test fails, because the developer page puts the message in the response. On the running app with MongoDB stopped, `GET /Covers` answered the same 500 problem (after the driver's 30 s server-selection timeout), and `ExceptionHandlerMiddleware` logged the `TimeoutException`.
+
 ---
 
 ## 7. A cover with claims cannot be deleted (D8) ✅
@@ -554,6 +568,7 @@ Since D31 the claim tests use moments: a claim at `StartsAt` and a minute before
 - Each test creates its own cover and claim, so the tests don't depend on order or on each other's data.
 - What they check, through routing, model binding, JSON and `ProblemDetails`: a created cover can be read back from its `Location` header with the README premium; 400 problems for an invalid cover and for a claim on an unknown cover, with the error on the right field; the delete flow 409 → 204 → 204 → 404; `compute` as a GET; a created claim appears in `GET /Claims` (the template's TODO); 404 for an unknown claim. Since D31: a cover starting today has `startsAt` = now; a claim three hours before the cover was bought, and a time without an offset, both give 400.
 - `AuditingTests` is the end-to-end check for `AuditWriter`: after POST and DELETE of a cover and a claim, the four rows appear in SQL Server with the fixed timestamp. Audits are written in the background, so it polls a fresh `AuditContext` every 100 ms for up to 5 s instead of sleeping a fixed time.
+- `ErrorHandlingTests` (D34) starts a second app from the same factory with `WithWebHostBuilder`, with an `ICoverService` that throws, and checks the 500 problem has no internal details.
 - Not covered: the drain on graceful shutdown. The factory now owns the containers (D29), so a test could stop the host and then read the rows; it isn't written yet.
 
 **Found by these tests: error responses had the wrong media type (D28).**

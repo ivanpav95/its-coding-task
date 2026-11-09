@@ -42,8 +42,9 @@ Done (pushed; see `git log` and PR #1):
 
 - Services don't know HTTP (D32): `IAuditer` takes an `AuditAction`; `ChannelAuditer` maps it to the verb stored in the audit tables.
 - One project per layer (D33, replaces D1): `Claims.Domain`, `Claims.Application`, `Claims.Infrastructure`, `Claims.Api` (was `Claims`), all at the solution root. `AddApplication()`/`AddInfrastructure()` register each layer; `Program.cs` only composes. 4 architecture tests in `Claims.UnitTests/Architecture`. R5's variable is now `ASPNETCORE_TEST_CONTENTROOT_CLAIMS_API`.
+- Global exception handler (D34): `AddProblemDetails()` + `UseExceptionHandler()`, in every environment. Unexpected errors are a logged 500 `application/problem+json` without internal details.
 
-Build: 0 warnings, no vulnerable packages (R8 fixed). Tests: 85 (75 unit, 10 integration).
+Build: 0 warnings, no vulnerable packages (R8 fixed). Tests: 86 (75 unit, 11 integration).
 
 Notes:
 
@@ -51,7 +52,7 @@ Notes:
 
 ## Plan
 
-Decisions behind every step are in `docs/findings.md` (D1–D33, D5.x) and explained in `docs/decisions.md`. Every step must keep the SOLID rules in `CLAUDE.md`. The steps were done in this order:
+Decisions behind every step are in `docs/findings.md` (D1–D34, D5.x) and explained in `docs/decisions.md`. Every step must keep the SOLID rules in `CLAUDE.md`. The steps were done in this order:
 
 **Task 1: layering.** Step numbers are kept as originally planned (other docs refer to them), but the order changed: step 5 was done before step 3 (D11). Execution order:
 

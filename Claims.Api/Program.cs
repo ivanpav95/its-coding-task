@@ -14,6 +14,8 @@ builder.Services
         x.JsonSerializerOptions.Converters.Add(new RequireOffsetDateTimeOffsetConverter());
     });
 
+builder.Services.AddProblemDetails();
+
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
@@ -25,6 +27,8 @@ builder.Services.AddSwaggerGen(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
+app.UseExceptionHandler();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
