@@ -1,3 +1,4 @@
+using Claims.Application.Auditing;
 using Claims.Application.Contracts;
 using Claims.Application.Services;
 using Claims.Application.Validation;
@@ -56,7 +57,7 @@ public class ClaimServiceTests
         Assert.Equal(
             new ClaimResponse(stored.Id, request.CoverId, request.Created, request.Name, request.Type, request.DamageCost),
             created.Claim);
-        Assert.Equal([new Audit("Claim", stored.Id, "POST")], _auditer.Audits);
+        Assert.Equal([new Audit("Claim", stored.Id, AuditAction.Created)], _auditer.Audits);
     }
 
     [Fact]
@@ -123,7 +124,7 @@ public class ClaimServiceTests
 
         Assert.True(await _service.DeleteAsync(created.Claim.Id, CancellationToken));
         Assert.Empty(_claims.Stored);
-        Assert.Equal([new Audit("Claim", created.Claim.Id, "DELETE")], _auditer.Audits);
+        Assert.Equal([new Audit("Claim", created.Claim.Id, AuditAction.Deleted)], _auditer.Audits);
     }
 
     [Fact]

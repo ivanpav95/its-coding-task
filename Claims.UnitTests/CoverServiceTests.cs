@@ -1,3 +1,4 @@
+using Claims.Application.Auditing;
 using Claims.Application.Contracts;
 using Claims.Application.Services;
 using Claims.Application.Validation;
@@ -37,7 +38,7 @@ public class CoverServiceTests
         var stored = Assert.Single(_covers.Stored);
         Assert.Equal(CoverResponse.From(stored), created.Cover);
         Assert.Equal(13_750m, stored.Premium); // 10 days at the Yacht day rate of 1,375
-        Assert.Equal([new Audit("Cover", stored.Id, "POST")], _auditer.Audits);
+        Assert.Equal([new Audit("Cover", stored.Id, AuditAction.Created)], _auditer.Audits);
     }
 
     [Fact]
@@ -70,7 +71,7 @@ public class CoverServiceTests
 
         Assert.Equal(DeleteCoverResult.Deleted, result);
         Assert.Empty(_covers.Stored);
-        Assert.Equal([new Audit("Cover", cover.Id, "DELETE")], _auditer.Audits);
+        Assert.Equal([new Audit("Cover", cover.Id, AuditAction.Deleted)], _auditer.Audits);
     }
 
     [Fact]

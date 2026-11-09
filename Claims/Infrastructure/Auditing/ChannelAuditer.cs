@@ -9,15 +9,15 @@ public class ChannelAuditer(
     TimeProvider timeProvider,
     ILogger<ChannelAuditer> logger) : IAuditer
 {
-    public ValueTask AuditClaimAsync(string id, string httpRequestType) =>
-        EnqueueAsync(AuditedEntity.Claim, id, httpRequestType);
+    public ValueTask AuditClaimAsync(string id, AuditAction action) =>
+        EnqueueAsync(AuditedEntity.Claim, id, action);
 
-    public ValueTask AuditCoverAsync(string id, string httpRequestType) =>
-        EnqueueAsync(AuditedEntity.Cover, id, httpRequestType);
+    public ValueTask AuditCoverAsync(string id, AuditAction action) =>
+        EnqueueAsync(AuditedEntity.Cover, id, action);
 
-    private async ValueTask EnqueueAsync(AuditedEntity entity, string id, string httpRequestType)
+    private async ValueTask EnqueueAsync(AuditedEntity entity, string id, AuditAction action)
     {
-        var message = new AuditMessage(entity, id, httpRequestType, timeProvider.GetUtcNow().UtcDateTime);
+        var message = new AuditMessage(entity, id, ToHttpRequestType(action), timeProvider.GetUtcNow().UtcDateTime);
         try
         {
             await writer.WriteAsync(message);
@@ -27,4 +27,12 @@ public class ChannelAuditer(
             logger.LogWarning("Audit queue is closed (shutting down); dropped {Message}.", message);
         }
     }
+
+    // The audit tables keep the template's HttpRequestType column (D24); the services only know the action.
+    private static string ToHttpRequestType(AuditAction action) => action switch
+    {
+        AuditAction.Created => "POST",
+        AuditAction.Deleted => "DELETE",
+        _ => throw new ArgumentOutOfRangeException(nameof(action), action, "Unknown audit action.")
+    };
 }

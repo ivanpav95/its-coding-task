@@ -56,7 +56,7 @@ public class ClaimService(
         };
 
         await claims.AddAsync(claim, cancellationToken);
-        await auditer.AuditClaimAsync(claim.Id, "POST");
+        await auditer.AuditClaimAsync(claim.Id, AuditAction.Created);
         return new CreateClaimResult.Created(ClaimResponse.From(claim));
     }
 
@@ -67,7 +67,7 @@ public class ClaimService(
             return false;
         }
 
-        await auditer.AuditClaimAsync(id, "DELETE");
+        await auditer.AuditClaimAsync(id, AuditAction.Deleted);
         return true;
     }
 

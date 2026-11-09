@@ -45,7 +45,7 @@ public class CoverService(
         };
 
         await covers.AddAsync(cover, cancellationToken);
-        await auditer.AuditCoverAsync(cover.Id, "POST");
+        await auditer.AuditCoverAsync(cover.Id, AuditAction.Created);
         return new CreateCoverResult.Created(CoverResponse.From(cover));
     }
 
@@ -61,7 +61,7 @@ public class CoverService(
             return DeleteCoverResult.NotFound;
         }
 
-        await auditer.AuditCoverAsync(id, "DELETE");
+        await auditer.AuditCoverAsync(id, AuditAction.Deleted);
         return DeleteCoverResult.Deleted;
     }
 

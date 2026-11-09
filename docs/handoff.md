@@ -38,7 +38,9 @@ Done (pushed; see `git log` and PR #1):
 - Business time zone (D30): "today" is the date in `Europe/Oslo` (`BusinessTimeZone` in config), through `BusinessTimeProvider` and `GetLocalNow()`. With UTC, a cover could start "yesterday" for an hour or two after midnight in Oslo.
 - No backdating (D31): the cover keeps its dates and gets server-set `StartsAt` (later of now and midnight on `StartDate`) and `EndsAt` (midnight after `EndDate`), in `Domain/CoverPeriod`. `Claim.Created` is the moment of the damage (`DateTimeOffset`, offset required by `RequireOffsetDateTimeOffsetConverter`): `StartsAt <= Created < EndsAt`, not in the future.
 
-Build: 0 warnings, no vulnerable packages (R8 fixed). Tests: 79 (69 unit, 10 integration).
+- Services don't know HTTP (D32): `IAuditer` takes an `AuditAction`; `ChannelAuditer` maps it to the verb stored in the audit tables.
+
+Build: 0 warnings, no vulnerable packages (R8 fixed). Tests: 81 (71 unit, 10 integration).
 
 Notes:
 
@@ -46,7 +48,7 @@ Notes:
 
 ## Plan
 
-Decisions behind every step are in `docs/findings.md` (D1–D31, D5.x) and explained in `docs/decisions.md`. Every step must keep the SOLID rules in `CLAUDE.md`. The steps were done in this order:
+Decisions behind every step are in `docs/findings.md` (D1–D32, D5.x) and explained in `docs/decisions.md`. Every step must keep the SOLID rules in `CLAUDE.md`. The steps were done in this order:
 
 **Task 1: layering.** Step numbers are kept as originally planned (other docs refer to them), but the order changed: step 5 was done before step 3 (D11). Execution order:
 
