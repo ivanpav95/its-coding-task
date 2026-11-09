@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using Claims.Application.Auditing;
+using Microsoft.Extensions.Logging;
 
 namespace Claims.Infrastructure.Auditing;
 
