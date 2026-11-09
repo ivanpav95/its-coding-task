@@ -1,5 +1,7 @@
 # Findings & decisions log
 
+> AI working notes: kept by me and the AI assistant while working on the task, not written as documentation for reviewers. They stay in the repo because the task invites AI artifacts.
+
 Working notes for the Claims coding task. Updated as we go.
 Status: ✅ fixed · 🔧 planned · ❓ open question
 

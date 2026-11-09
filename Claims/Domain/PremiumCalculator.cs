@@ -26,7 +26,7 @@ public static class PremiumCalculator
             + secondDiscount * (1 - rates.SecondDiscount));
     }
 
-    // Discounts are off the base day rate; "additional" is added to the previous discount (D5.3).
+    // Discounts are off the base day rate; "additional" is added to the previous discount.
     private static Rates RatesFor(CoverType coverType) => coverType switch
     {
         CoverType.Yacht => new(Multiplier: 1.1m, FirstDiscount: 0.05m, SecondDiscount: 0.05m + 0.03m),

@@ -1,5 +1,7 @@
 # Handoff: Claims coding task
 
+> AI working notes: kept by me and the AI assistant while working on the task, not written as documentation for reviewers. They stay in the repo because the task invites AI artifacts.
+
 Context for an AI coding assistant (e.g. Claude Code) picking up this work.
 Read this file and `docs/findings.md` before doing anything.
 
@@ -99,4 +101,4 @@ Decisions behind every step are in `docs/findings.md` (D1–D32, D5.x) and expla
 
 - ✅ README: how to run, how to test, where the databases come from, structure.
 - ✅ PR description: where to look first, trade-offs, assumptions, other fixes, what's not in scope.
-- ✅ AI artifacts (encouraged by the README): `CLAUDE.md`, `docs/handoff.md`, `docs/findings.md` and `docs/decisions.md` stay in the repo and are mentioned in the PR.
+- ✅ AI artifacts (encouraged by the README): `CLAUDE.md`, `docs/handoff.md`, `docs/findings.md` and `docs/decisions.md` stay in the repo as working notes, not as documentation for reviewers; the README and the PR say so.

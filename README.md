@@ -48,8 +48,6 @@ One project, layered by folders:
 | `Domain` | `Cover`, `Claim` and `PremiumCalculator` | nothing |
 | `Infrastructure` | MongoDB repositories, background audit writing to SQL Server | implements `Application` interfaces |
 
-## Design notes
+## AI working notes
 
-- [docs/decisions.md](docs/decisions.md) explains each decision, with the options I rejected.
-- [docs/findings.md](docs/findings.md) is the short log of problems found and decisions taken.
-- `CLAUDE.md` and [docs/handoff.md](docs/handoff.md) are the working notes for the AI assistant I used.
+`CLAUDE.md`, `docs/handoff.md`, `docs/findings.md` and `docs/decisions.md` are the notes I kept while working with an AI assistant: its instructions, the plan, a log of findings and decisions, and the reasoning behind them. They were written for my own work, not as documentation of the solution. The task invites AI artifacts, so they stay in the repo.

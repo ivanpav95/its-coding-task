@@ -1,5 +1,7 @@
 # Technical decisions
 
+> AI working notes: kept by me and the AI assistant while working on the task, not written as documentation for reviewers. They stay in the repo because the task invites AI artifacts.
+
 Why the code is built the way it is. One section per decision: the problem, what we chose, how it works technically, and what we gave up.
 IDs match `docs/findings.md`, which is the short log. This file is the long explanation.
 

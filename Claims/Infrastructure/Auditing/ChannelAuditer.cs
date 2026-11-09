@@ -28,7 +28,7 @@ public class ChannelAuditer(
         }
     }
 
-    // The audit tables keep the template's HttpRequestType column (D24); the services only know the action.
+    // The audit tables keep the template's HttpRequestType column; the services only know the action.
     private static string ToHttpRequestType(AuditAction action) => action switch
     {
         AuditAction.Created => "POST",
