@@ -20,7 +20,7 @@ Ivan's take-home for Insurance Technology Solutions. The task is in `docs/README
 
 - Keep it small and clear: "more code is not better code" and "AI slop is frowned upon" (README).
 - No MediatR, no AutoMapper, no generic repository. Hand-written mapping.
-- One project, layered by folders: `Api` → `Application` → `Domain`; `Infrastructure` implements `Application` interfaces (D1).
+- One project per layer (D33): `Claims.Api` → `Claims.Application` → `Claims.Domain`; `Claims.Infrastructure` implements `Claims.Application` interfaces. `Claims.Api` references Infrastructure only to register it in `Program.cs`; controllers use services. Each layer registers its own types (`AddApplication`, `AddInfrastructure`). The architecture tests in `Claims.UnitTests/Architecture` must keep passing.
 - No comments that restate the code. XML doc comments on public endpoints are wanted (Swagger).
 - `DateOnly` for calendar dates, UTC `DateTime` for moments in the domain and database, `DateTimeOffset` with a required offset for moments in the API (D7, D31). Get "now" from the injected `TimeProvider`, never `DateTime.Now`/`UtcNow`: `GetUtcNow()` for moments, `GetLocalNow()` for "today" in the business time zone (D30).
 

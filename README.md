@@ -39,14 +39,16 @@ The app only knows two connection strings, `ConnectionStrings:Audit` (SQL Server
 
 ## Structure
 
-One project, layered by folders:
+One project per layer. Project references enforce the dependency direction, and architecture tests in `Claims.UnitTests/Architecture` check it too.
 
-| Folder | Holds | Depends on |
+| Project | Holds | References |
 |---|---|---|
-| `Api` | Controllers: HTTP in, status codes out | `Application` |
-| `Application` | Services, request and response contracts, validators, and the interfaces for repositories and auditing | `Domain` |
-| `Domain` | `Cover`, `Claim` and `PremiumCalculator` | nothing |
-| `Infrastructure` | MongoDB repositories, background audit writing to SQL Server | implements `Application` interfaces |
+| `Claims.Api` | Controllers (HTTP in, status codes out) and `Program.cs`, which composes the layers | `Claims.Application`, and `Claims.Infrastructure` only to register it |
+| `Claims.Application` | Services, request and response contracts, validators, and the interfaces for repositories and auditing | `Claims.Domain` |
+| `Claims.Domain` | `Cover`, `Claim`, `PremiumCalculator` and `CoverPeriod` | nothing |
+| `Claims.Infrastructure` | MongoDB repositories, background audit writing to SQL Server, the business clock | `Claims.Application`, whose interfaces it implements |
+
+Each layer registers its own types (`AddApplication()`, `AddInfrastructure()`).
 
 ## AI working notes
 

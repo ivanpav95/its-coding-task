@@ -41,8 +41,9 @@ Done (pushed; see `git log` and PR #1):
 - No backdating (D31): the cover keeps its dates and gets server-set `StartsAt` (later of now and midnight on `StartDate`) and `EndsAt` (midnight after `EndDate`), in `Domain/CoverPeriod`. `Claim.Created` is the moment of the damage (`DateTimeOffset`, offset required by `RequireOffsetDateTimeOffsetConverter`): `StartsAt <= Created < EndsAt`, not in the future.
 
 - Services don't know HTTP (D32): `IAuditer` takes an `AuditAction`; `ChannelAuditer` maps it to the verb stored in the audit tables.
+- One project per layer (D33, replaces D1): `Claims.Domain`, `Claims.Application`, `Claims.Infrastructure`, `Claims.Api` (was `Claims`), all at the solution root. `AddApplication()`/`AddInfrastructure()` register each layer; `Program.cs` only composes. 4 architecture tests in `Claims.UnitTests/Architecture`. R5's variable is now `ASPNETCORE_TEST_CONTENTROOT_CLAIMS_API`.
 
-Build: 0 warnings, no vulnerable packages (R8 fixed). Tests: 81 (71 unit, 10 integration).
+Build: 0 warnings, no vulnerable packages (R8 fixed). Tests: 85 (75 unit, 10 integration).
 
 Notes:
 
@@ -50,7 +51,7 @@ Notes:
 
 ## Plan
 
-Decisions behind every step are in `docs/findings.md` (D1–D32, D5.x) and explained in `docs/decisions.md`. Every step must keep the SOLID rules in `CLAUDE.md`. The steps were done in this order:
+Decisions behind every step are in `docs/findings.md` (D1–D33, D5.x) and explained in `docs/decisions.md`. Every step must keep the SOLID rules in `CLAUDE.md`. The steps were done in this order:
 
 **Task 1: layering.** Step numbers are kept as originally planned (other docs refer to them), but the order changed: step 5 was done before step 3 (D11). Execution order:
 
@@ -96,6 +97,11 @@ Decisions behind every step are in `docs/findings.md` (D1–D32, D5.x) and expla
 
 - D30: "today" in the business time zone (`Europe/Oslo`), decided by the server, never by the client.
 - D31: a date says which days a cover includes, a moment says from when it is in force. `StartsAt`/`EndsAt` set by the server; claims carry the moment of the damage with a required offset; future claims rejected. The first day is charged in full.
+
+**One project per layer (D33)** ✅ done, after the PR was submitted.
+
+- One commit per project: `Claims.Domain`, `Claims.Application`, `Claims.Infrastructure`, then `Claims.Api`; registration per layer; architecture tests.
+- Same namespaces and migration ID, so the code barely changed and existing databases don't re-migrate.
 
 **Finish**
 

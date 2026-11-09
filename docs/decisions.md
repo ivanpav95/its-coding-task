@@ -23,22 +23,28 @@ Status: ✅ done · 🔧 decided, not built yet
 
 ---
 
-## 2. One project, layered by folders (D1) ✅
+## 2. One project per layer (D1, then D33) ✅
 
 **Problem.** Controllers did data access, auditing, premium calculation and id generation. Nothing could be tested without HTTP and two databases.
 
-**Decision.** Four folders in the one API project:
+**Decision.** Four projects at the solution root, next to the two test projects:
 
-| Folder           | Contains                                                                                |
-| ---------------- | --------------------------------------------------------------------------------------- |
-| `Api`            | Controllers and the JSON converter for times. Maps HTTP to service calls and back.     |
-| `Application`    | `ClaimService`, `CoverService`, request/response contracts (§4), repository interfaces, `IAuditer`, validators. |
-| `Domain`         | `Claim`, `Cover`, enums, `PremiumCalculator`, `CoverPeriod`.                            |
-| `Infrastructure` | Mongo repositories (EF Core provider), SQL Server audit context, audit background worker, `BusinessTimeProvider`. |
+| Project                 | Contains                                                                                | References |
+| ----------------------- | --------------------------------------------------------------------------------------- | ---------- |
+| `Claims.Api`            | Controllers, the JSON converter for times, `Program.cs`. Maps HTTP to service calls and back, and composes the layers. | `Claims.Application`, `Claims.Infrastructure` |
+| `Claims.Application`    | `ClaimService`, `CoverService`, request/response contracts (§4), repository interfaces, `IAuditer`, validators. | `Claims.Domain`, FluentValidation |
+| `Claims.Domain`         | `Claim`, `Cover`, enums, `PremiumCalculator`, `CoverPeriod`.                            | nothing |
+| `Claims.Infrastructure` | Mongo repositories (EF Core provider), SQL Server audit context and migrations, audit background worker, `BusinessTimeProvider`. | `Claims.Application`, EF Core, MongoDB |
 
-Dependencies point inward: `Api` → `Application` → `Domain`; `Infrastructure` implements interfaces from `Application`.
+Dependencies point inward: `Api` → `Application` → `Domain`; `Infrastructure` implements interfaces from `Application`. The namespaces stayed the same as in the folder version (`Claims.Application.Services`, …).
 
-**Why folders, not projects.** Separate projects enforce the dependency direction at compile time. That's their real benefit. For two entities and one deployable it costs more than it gives: more `.csproj` files, more references, slower navigation. We keep the direction by convention. If the codebase grew, an architecture test (e.g. NetArchTest) or a project split would enforce it.
+**History: first folders (D1), then projects (D33).** The first version was one project layered by folders, with the direction kept by convention: two entities and one deployable didn't seem to justify several projects. We split it after the task was done, because the real benefit of projects is that the **compiler** enforces the direction: a `using Claims.Infrastructure…` in a service is now a build error, not something a reviewer has to notice. The split moved files and project files only; the code barely changed. One project per commit (Domain, Application, Infrastructure, then Api), so `Application` never referenced `Infrastructure` in any commit (D11).
+
+**What project references can't enforce.** `Claims.Api` must reference `Claims.Infrastructure` to register it, so a controller could still use `ClaimsContext` directly. The architecture tests (`Claims.UnitTests/Architecture`, `NetArchTest.eNhancedEdition`) check that, and repeat the project-level rules as a safety net. Making the Infrastructure classes `internal` would let the compiler enforce it too, at the cost of `InternalsVisibleTo` for both test projects; not done.
+
+**Registration per layer.** `AddApplication()` and `AddInfrastructure(configuration)` live next to the types they register, and `MigrateAuditDatabase()` runs the startup migration. `Program.cs` only composes them and configures HTTP, so it names no Infrastructure type.
+
+**Rejected.** `src/` and `tests/` folders: the common convention, but more path changes for six projects that read fine side by side.
 
 **Why the premium calculator is in Domain.** It's a pure business rule: same input, same price, no I/O. Application orchestrates (load, call the rule, save, audit); Domain holds the rules.
 
@@ -400,7 +406,7 @@ await foreach (var message in channel.Reader.ReadAllAsync(CancellationToken.None
 **As built.**
 - `Infrastructure/Auditing/ChannelAuditer` is the singleton `IAuditer`. It gets only the `ChannelWriter<AuditMessage>`, stamps `TimeProvider.GetUtcNow()` (the time of the request, not of the insert) and writes. While the queue has room, `WriteAsync` returns an already-completed `ValueTask`: the request doesn't wait, switch threads or allocate. It only waits (asynchronously, without holding a thread) when the queue is full. The worker's continuation runs on the thread pool (`AllowSynchronousContinuations` is `false` by default), so the request thread never runs the SQL insert. `ValueTask` matches the channel's own API; `Task` would also work, since the fast-path difference is tiny.
 - `Infrastructure/Auditing/AuditWriter` is the `BackgroundService`. It gets the `Channel<AuditMessage>` because it reads it and also closes it on shutdown. `SingleReader = true` because it's the only reader.
-- `Program.cs` registers one `Channel` and its `Writer` separately, so the auditer can't read and the services know neither (S, I, D). The old `Auditer` is deleted.
+- `Program.cs` (since D33: `AddInfrastructure()`) registers one `Channel` and its `Writer` separately, so the auditer can't read and the services know neither (S, I, D). The old `Auditer` is deleted.
 - Capacity is `Auditing:QueueCapacity` = 1000 (D21). It's a guess, and it's in config so it can change without a code change.
 - A failed insert is logged with the full message and skipped (D22). The loop keeps running; retries or a dead-letter table are the next step.
 - **Shutdown (D23).** `StopAsync` closes the writer, then `base.StopAsync` waits for `ExecuteAsync`, which ends when the queue is empty. That wait is bounded by the host shutdown timeout (30 s by default); anything left is logged with a count. The loop and the inserts deliberately don't use the stopping token, because cancelling it would abandon the queue instead of draining it. A request that audits after the channel closed gets a logged warning, not an exception: its data is already saved.
@@ -482,7 +488,7 @@ var sql = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
 | Local development | `docker compose up -d --wait`: containers with named volumes, so data survives app restarts; connection strings in `appsettings.Development.json` |
 | Production (next step) | Managed services such as Azure SQL and Cosmos DB for MongoDB; connection strings from app settings or Key Vault |
 
-**How.** `Program.cs` reads the connection strings inside the `AddDbContext` and `MongoClient` registrations, so they're read when first used. A missing one fails with a clear message. The test factory adds its connection strings with `ConfigureAppConfiguration`, which takes precedence over `appsettings.Development.json`.
+**How.** `Program.cs` (since D33: `AddInfrastructure()`) reads the connection strings inside the `AddDbContext` and `MongoClient` registrations, so they're read when first used. A missing one fails with a clear message. The test factory adds its connection strings with `ConfigureAppConfiguration`, which takes precedence over `appsettings.Development.json`.
 
 **Trade-offs.**
 - The local SQL password is in `docker-compose.yml` and `appsettings.Development.json`. It only protects a local throwaway container, and committing it lets a reviewer run the app with no setup. Real secrets belong in Key Vault or Managed Identity.
@@ -537,6 +543,8 @@ var sql = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
 **What the service tests prove.** Every outcome of every use case, and the side effects that go with it: a valid cover is stored with the premium from the README (10 Yacht days = 13,750) and audited once; anything rejected (invalid input, unknown cover, a claim outside the period, a cover that still has claims, an unknown id) stores nothing and audits nothing; a claim on the first and last day of the cover is accepted, the day before and after is not. Checked by breaking the end-date check (`>` → `>=`): the boundary test fails.
 
 Since D31 the claim tests use moments: a claim at `StartsAt` and a minute before `EndsAt` is accepted; 10:00 on the first day of a cover bought at 18:00, a minute before `StartsAt`, and `EndsAt` are rejected. Removing the `StartsAt` check makes the two backdating tests fail.
+
+**Architecture tests (D33).** `Claims.UnitTests/Architecture/LayerDependencyTests` has four rules, run on the compiled assemblies with `NetArchTest.eNhancedEdition` 1.4.5 (the maintained fork; the original `NetArchTest.Rules` has had no release since 2021): Domain depends on nothing; Application only on Domain; Infrastructure not on the API; controllers not on Infrastructure, EF Core or MongoDB. A failure names the offending types. Checked by breaking them on purpose: a `ClaimsContext` field in `ClaimsController` fails exactly the controller rule.
 
 **No controller unit tests (D27).** Controllers only map results to status codes. The integration tests (4c) check exactly that through routing, model binding, JSON and `ProblemDetails`, which a controller unit test would skip.
 
