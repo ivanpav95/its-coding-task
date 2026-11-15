@@ -19,10 +19,10 @@ public class ClaimsEndpointTests(ClaimsApiFactory factory)
         var cover = await _client.CreateCoverAsync();
         var claim = await _client.CreateClaimAsync(cover.Id);
 
-        var response = await _client.GetAsync("/Claims", CancellationToken);
+        var response = await _client.GetAsync("/Claims?pageSize=100", CancellationToken);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Contains(claim, await response.ReadAsync<List<ClaimResponse>>());
+        Assert.Contains(claim, (await response.ReadAsync<PagedResponse<ClaimResponse>>()).Items);
     }
 
     [Fact]

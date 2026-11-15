@@ -9,8 +9,15 @@ public class InMemoryCoverRepository : ICoverRepository
 
     public IReadOnlyCollection<Cover> Stored => _covers.Values;
 
-    public Task<IReadOnlyList<Cover>> GetAllAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<Cover>>(_covers.Values.ToList());
+    public Task<IReadOnlyList<Cover>> GetPageAsync(int skip, int take, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Cover>>(_covers.Values
+            .OrderBy(cover => cover.StartDate)
+            .ThenBy(cover => cover.Id, StringComparer.Ordinal)
+            .Skip(skip)
+            .Take(take)
+            .ToList());
+
+    public Task<int> CountAsync(CancellationToken cancellationToken = default) => Task.FromResult(_covers.Count);
 
     public Task<Cover?> GetByIdAsync(string id, CancellationToken cancellationToken = default) =>
         Task.FromResult(_covers.GetValueOrDefault(id));

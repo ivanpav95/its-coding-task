@@ -33,12 +33,23 @@ public class CoversController(ICoverService coverService) : ControllerBase
         };
     }
 
-    /// <summary>Lists all covers.</summary>
+    /// <summary>Lists covers one page at a time, ordered by start date.</summary>
+    /// <param name="page">The page number, starting at 1.</param>
+    /// <param name="pageSize">Covers per page, 1 to 100.</param>
+    /// <param name="cancellationToken">Cancelled when the client disconnects.</param>
+    /// <response code="400">The page or the page size is out of range.</response>
     [HttpGet]
-    [ProducesResponseType<IReadOnlyList<CoverResponse>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    public async Task<ActionResult<IReadOnlyList<CoverResponse>>> GetAll(CancellationToken cancellationToken)
+    [ProducesResponseType<PagedResponse<CoverResponse>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
+    public async Task<ActionResult<PagedResponse<CoverResponse>>> GetPage(
+        int page = 1, int pageSize = PageRequest.DefaultPageSize, CancellationToken cancellationToken = default)
     {
-        return Ok(await coverService.GetAllAsync(cancellationToken));
+        return await coverService.GetPageAsync(new PageRequest(page, pageSize), cancellationToken) switch
+        {
+            GetPageResult<CoverResponse>.Found found => found.Page,
+            GetPageResult<CoverResponse>.Invalid invalid => this.ValidationProblem(invalid.Errors),
+            var result => throw new InvalidOperationException($"Unhandled result {result}.")
+        };
     }
 
     /// <summary>Gets one cover.</summary>

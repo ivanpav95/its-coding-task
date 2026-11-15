@@ -6,8 +6,16 @@ namespace Claims.Infrastructure.Persistence;
 
 public class CoverRepository(ClaimsContext context) : ICoverRepository
 {
-    public async Task<IReadOnlyList<Cover>> GetAllAsync(CancellationToken cancellationToken = default) =>
-        await context.Covers.ToListAsync(cancellationToken);
+    public async Task<IReadOnlyList<Cover>> GetPageAsync(int skip, int take, CancellationToken cancellationToken = default) =>
+        await context.Covers
+            .OrderBy(cover => cover.StartDate)
+            .ThenBy(cover => cover.Id)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+    public Task<int> CountAsync(CancellationToken cancellationToken = default) =>
+        context.Covers.CountAsync(cancellationToken);
 
     public Task<Cover?> GetByIdAsync(string id, CancellationToken cancellationToken = default) =>
         context.Covers.SingleOrDefaultAsync(cover => cover.Id == id, cancellationToken);

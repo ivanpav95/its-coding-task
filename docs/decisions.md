@@ -579,6 +579,30 @@ var sql = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
 
 ---
 
+## 20b. Paging (D37) ✅
+
+**Problem.** `GET /Claims` and `GET /Covers` returned everything, the first thing to break as the data grows. The repositories loaded every document into memory, in no defined order.
+
+**Decision.**
+- **Offset paging:** `?page=1&pageSize=10`. Default page 1, default size 10, at most 100.
+- **Envelope:** `{ "items": [...], "page": 1, "pageSize": 10, "totalCount": 123 }`, the generic `PagedResponse<T>` for both endpoints.
+- **A fixed order,** because without one MongoDB may return an item on two pages or skip it: covers by `StartDate`, claims by `Created` (the moment of the damage), each then by `Id` so ties always come out the same way. Sorting, skipping and counting run in MongoDB.
+- **Out of range is a 400,** never silently capped: `PageRequestValidator` (FluentValidation, called from the services as in D2) and the usual `ValidationProblemDetails`. The error is keyed by the query parameter's own name (`pageSize`), because model binding already created that `ModelState` entry and its keys are case-insensitive. A non-number (`page=abc`) gets the same 400 from model binding.
+- **`page` is capped at 21,474,836** (`int.MaxValue / 100`), so `(page − 1) × pageSize` can't overflow an `int` and end as a 500.
+
+**How it fits the layers.** The services get `GetPageAsync(PageRequest)`, which returns `GetPageResult<T>`: `Found` or `Invalid`, like `CreateAsync`. One generic result type for both endpoints instead of two copies; unlike the generic `Result<T>` rejected in D14, its cases still name the outcomes. The repositories' `GetAllAsync` is replaced by `GetPageAsync(skip, take)` and `CountAsync()`, since nothing else used it. The fakes sort the same way, with an ordinal string comparison like MongoDB's, so services can't tell them apart (Liskov).
+
+**Trade-offs.**
+- **A breaking change:** the response changes from an array to an object. Fine here because nothing uses the API yet.
+- **Offset paging gets slower on deep pages** (the database still walks the skipped items), and an insert between two requests can shift an item to the next page. Cursor paging (`?after=<token>`) fixes both, at the cost of more code and no page numbers.
+- **`totalCount` costs a second query** per request. Fine at this size; `hasNextPage` from fetching one extra item would be the cheaper alternative.
+
+**Rejected.** Cursor paging, for now (see above). A plain array with the total in a header: looks compatible, but a client that sends no parameters would silently get only the first 10 items. Filtering claims by cover: useful, but not asked for.
+
+**Verified.** Unit tests: the validator at every boundary; covers and claims come back in order, on the right page, with the total; an out-of-range size is `Invalid`. Integration tests on MongoDB: defaults (page 1, size 10), consecutive pages don't overlap, a 400 named after the parameter, and the order of a 100-item page from MongoDB (reversing the sort in the repository makes that test fail). On the running app: the envelope, the 400s for `pageSize=101`, `page=0` and `page=abc`, and Swagger shows `page`/`pageSize` and the `PagedResponse` schemas.
+
+---
+
 ## 21. Tests (Task 4) ✅
 
 **Two projects (D15, 4a).** `Claims.UnitTests` runs in about a second with no Docker; `Claims.IntegrationTests` starts the real app with its SQL Server and MongoDB containers. The names say what each one needs.

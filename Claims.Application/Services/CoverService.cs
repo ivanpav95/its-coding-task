@@ -11,12 +11,21 @@ public class CoverService(
     IClaimRepository claims,
     IAuditer auditer,
     IValidator<CreateCoverRequest> validator,
+    IValidator<PageRequest> pageValidator,
     TimeProvider timeProvider) : ICoverService
 {
-    public async Task<IReadOnlyList<CoverResponse>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<GetPageResult<CoverResponse>> GetPageAsync(PageRequest request, CancellationToken cancellationToken = default)
     {
-        var all = await covers.GetAllAsync(cancellationToken);
-        return all.Select(CoverResponse.From).ToList();
+        var validation = await pageValidator.ValidateAsync(request, cancellationToken);
+        if (!validation.IsValid)
+        {
+            return new GetPageResult<CoverResponse>.Invalid(validation.ToDictionary());
+        }
+
+        var page = await covers.GetPageAsync((request.Page - 1) * request.PageSize, request.PageSize, cancellationToken);
+        var totalCount = await covers.CountAsync(cancellationToken);
+        return new GetPageResult<CoverResponse>.Found(
+            new PagedResponse<CoverResponse>(page.Select(CoverResponse.From).ToList(), request.Page, request.PageSize, totalCount));
     }
 
     public async Task<CoverResponse?> GetByIdAsync(string id, CancellationToken cancellationToken = default)

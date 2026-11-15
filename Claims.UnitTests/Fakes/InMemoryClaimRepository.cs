@@ -9,8 +9,15 @@ public class InMemoryClaimRepository : IClaimRepository
 
     public IReadOnlyCollection<Claim> Stored => _claims.Values;
 
-    public Task<IReadOnlyList<Claim>> GetAllAsync(CancellationToken cancellationToken = default) =>
-        Task.FromResult<IReadOnlyList<Claim>>(_claims.Values.ToList());
+    public Task<IReadOnlyList<Claim>> GetPageAsync(int skip, int take, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<Claim>>(_claims.Values
+            .OrderBy(claim => claim.Created)
+            .ThenBy(claim => claim.Id, StringComparer.Ordinal)
+            .Skip(skip)
+            .Take(take)
+            .ToList());
+
+    public Task<int> CountAsync(CancellationToken cancellationToken = default) => Task.FromResult(_claims.Count);
 
     public Task<Claim?> GetByIdAsync(string id, CancellationToken cancellationToken = default) =>
         Task.FromResult(_claims.GetValueOrDefault(id));

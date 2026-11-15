@@ -14,6 +14,7 @@ public static class ApplicationServiceCollectionExtensions
         services.AddScoped<IClaimService, ClaimService>();
         services.AddSingleton<IValidator<CreateCoverRequest>, CreateCoverRequestValidator>();
         services.AddSingleton<IValidator<CreateClaimRequest>, CreateClaimRequestValidator>();
+        services.AddSingleton<IValidator<PageRequest>, PageRequestValidator>();
         return services;
     }
 }

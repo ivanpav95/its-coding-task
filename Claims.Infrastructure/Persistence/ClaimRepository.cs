@@ -6,8 +6,16 @@ namespace Claims.Infrastructure.Persistence;
 
 public class ClaimRepository(ClaimsContext context) : IClaimRepository
 {
-    public async Task<IReadOnlyList<Claim>> GetAllAsync(CancellationToken cancellationToken = default) =>
-        await context.Claims.ToListAsync(cancellationToken);
+    public async Task<IReadOnlyList<Claim>> GetPageAsync(int skip, int take, CancellationToken cancellationToken = default) =>
+        await context.Claims
+            .OrderBy(claim => claim.Created)
+            .ThenBy(claim => claim.Id)
+            .Skip(skip)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+    public Task<int> CountAsync(CancellationToken cancellationToken = default) =>
+        context.Claims.CountAsync(cancellationToken);
 
     public Task<Claim?> GetByIdAsync(string id, CancellationToken cancellationToken = default) =>
         context.Claims.SingleOrDefaultAsync(claim => claim.Id == id, cancellationToken);
