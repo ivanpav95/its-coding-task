@@ -11,7 +11,9 @@ docker compose up -d --wait
 dotnet run --project Claims.Api --launch-profile Claims.Api
 ```
 
-Swagger is at https://localhost:7052/swagger. The databases keep their data in Docker volumes:
+Swagger is at https://localhost:7052/swagger. Health: `/health/live` (the process answers) and `/health/ready` (MongoDB and SQL Server reachable; SQL Server down reports `Degraded` but stays 200, because audits are queued).
+
+The databases keep their data in Docker volumes:
 - `docker compose stop` stops them and keeps the data;
 - `docker compose down -v` removes them together with the data.
 

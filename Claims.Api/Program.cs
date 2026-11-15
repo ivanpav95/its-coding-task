@@ -1,6 +1,7 @@
 using Claims.Api;
 using Claims.Application;
 using Claims.Infrastructure;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using System.Text.Json.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -40,6 +41,13 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Live: the process answers, no dependencies checked. Ready: it can serve, so the databases are checked.
+app.MapHealthChecks("/health/live", new HealthCheckOptions { Predicate = _ => false });
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains(InfrastructureServiceCollectionExtensions.ReadinessTag)
+});
 
 app.Services.MigrateAuditDatabase();
 

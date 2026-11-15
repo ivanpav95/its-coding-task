@@ -4,7 +4,7 @@ namespace Claims.Application.Services;
 
 public interface IClaimService
 {
-    Task<IReadOnlyList<ClaimResponse>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<GetPageResult<ClaimResponse>> GetPageAsync(PageRequest request, CancellationToken cancellationToken = default);
 
     Task<ClaimResponse?> GetByIdAsync(string id, CancellationToken cancellationToken = default);
 

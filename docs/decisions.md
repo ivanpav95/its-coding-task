@@ -392,20 +392,23 @@ Each expected value is derived from the README by hand, never from running the c
 Channel.CreateBounded<AuditMessage>(new BoundedChannelOptions(capacity)
     { FullMode = BoundedChannelFullMode.Wait });
 
-// AuditWriter : BackgroundService (simplified; see "As built")
-await foreach (var message in channel.Reader.ReadAllAsync(CancellationToken.None))
+// AuditWriter : BackgroundService (simplified; see "As built" and D36)
+while (await channel.Reader.WaitToReadAsync(CancellationToken.None))
 {
-    await using var scope = scopeFactory.CreateAsyncScope();
-    var db = scope.ServiceProvider.GetRequiredService<AuditContext>();
-    db.Add(ToEntity(message));
-    await db.SaveChangesAsync();
+    // take what's already queued, up to the batch size (100), without waiting for more
+    while (batch.Count < batchSize && channel.Reader.TryRead(out var message)) batch.Add(message);
+
+    // one DI scope, AddTo for each (CoverAudits.Add or ClaimAudits.Add), one SaveChanges;
+    // if that fails, the same messages one by one, each in its own scope
+    await SaveAsync(batch);
+    batch.Clear();
 }
 ```
 
 **How it works.**
 - The service writes a plain message (id, verb, UTC timestamp) to the channel after the main operation succeeded. The request continues immediately.
 - The channel holds messages, never a `DbContext`.
-- The worker creates a new DI scope per write. `BackgroundService` is a singleton, and `AuditContext` is scoped and not thread-safe. Injecting it directly would be a captive dependency.
+- The worker creates a new DI scope per write (since D36: per batch). `BackgroundService` is a singleton, and `AuditContext` is scoped and not thread-safe. Injecting it directly would be a captive dependency.
 - On graceful shutdown the worker writes what's still queued before it exits.
 - If an insert fails, the worker logs it with the ids and continues. One bad write must not stop auditing.
 
@@ -423,12 +426,17 @@ await foreach (var message in channel.Reader.ReadAllAsync(CancellationToken.None
 - `Program.cs` (since D33: `AddInfrastructure()`) registers one `Channel` and its `Writer` separately, so the auditer can't read and the services know neither (S, I, D). The old `Auditer` is deleted.
 - Capacity is `Auditing:QueueCapacity` = 1000 (D21). It's a guess, and it's in config so it can change without a code change.
 - A failed insert is logged with the full message and skipped (D22). The loop keeps running; retries or a dead-letter table are the next step.
+- **Batched writes (D36, F2).** The worker takes whatever is already queued, up to `Auditing:BatchSize` = 100, and saves it with one scope and one `SaveChanges`: one transaction, and EF sends the INSERTs in a few commands (up to 42 statements each on SQL Server) instead of one round trip per audit. It never waits to fill a batch, so a single audit is written at once, as before; batches only form under load. The request path is unchanged.
+  - **Failure policy: one by one.** `SaveChanges` is all or nothing, so skipping a failed batch would lose up to 100 audits for one bad row. Instead the batch's messages are saved one by one, each in its own scope (a failed context still tracks the failed rows, so it can't be reused), and only the ones that fail again are logged and skipped, exactly as before. Cost: while SQL Server is down, one extra failed attempt (one connect timeout) per batch before the per-message attempts.
+  - **Rejected.** Skipping the whole batch (loses up to N audits at once). Retrying the batch with backoff: survives short outages, but belongs with the durable-audits next step (retries, then an outbox), and while it retries the queue fills and backpressure comes sooner.
+  - A batch size below 1 is rejected at startup; it would make the loop spin without reading.
 - **Shutdown (D23).** `StopAsync` closes the writer, then `base.StopAsync` waits for `ExecuteAsync`, which ends when the queue is empty. That wait is bounded by the host shutdown timeout (30 s by default); anything left is logged with a count. The loop and the inserts deliberately don't use the stopping token, because cancelling it would abandon the queue instead of draining it. A request that audits after the channel closed gets a logged warning, not an exception: its data is already saved.
 - **No `CancellationToken` on `IAuditer` (D25).** The audit runs after the entity was saved. Passing the request token would let a client disconnect cancel the audit of a change that did happen.
 - `HttpRequestType` stays a string to match the existing column (D24).
+- Each message is added to its typed set, `CoverAudits` or `ClaimAudits`, in the arm of the `switch` that built it. The first implementation returned `object` from `ToEntity` and called `context.Add(object)`, which threw the type away and made EF look it up at runtime (F3).
 - **The services don't know HTTP (D32).** They pass an `AuditAction` (`Created`, `Deleted`), and `ChannelAuditer` turns it into `"POST"` or `"DELETE"` with a `switch`. The verb is a detail of the template's audit table, so it belongs in Infrastructure next to that table, not in the use cases. The column and the stored values are unchanged, so no migration. Trade-off: a new action needs a new enum value and a new `switch` arm; the default arm throws, so a forgotten mapping fails in the unit tests instead of writing a wrong row.
 
-**Verified.** 5 unit tests for `ChannelAuditer` (message content and UTC `Kind`; each action maps to its verb; a closed channel doesn't throw). With the app running, a cover and a claim created and deleted give 4 rows with UTC timestamps. With the SQL Server container paused, `POST /Covers` still returned 201 in 12 ms; the worker logged `Failed to save AuditMessage { ... }`, and the next audit after unpausing was saved. The graceful-shutdown drain is not verified by hand: stopping the app from the tooling kills the process instead of sending a graceful stop.
+**Verified.** 5 unit tests for `ChannelAuditer` (message content and UTC `Kind`; each action maps to its verb; a closed channel doesn't throw). 4 unit tests for `AuditWriter` (D36), on EF Core's in-memory provider with an interceptor that records each save and can fail one row: 250 queued messages are saved as 100, 100 and 50; when one row fails, the batch is retried one by one and only that row is missing; a batch size below 1 is rejected. The queue is filled and closed before the writer starts, so the batches don't depend on timing. Switching the writer to "skip the whole batch" makes the fallback test fail. On the running app, 50 parallel `POST /Covers` gave 50 audit rows and no errors. With the app running, a cover and a claim created and deleted give 4 rows with UTC timestamps. With the SQL Server container paused, `POST /Covers` still returned 201 in 12 ms; the worker logged `Failed to save AuditMessage { ... }`, and the next audit after unpausing was saved. The graceful-shutdown drain is not verified by hand: stopping the app from the tooling kills the process instead of sending a graceful stop.
 
 ---
 
@@ -540,6 +548,58 @@ var sql = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
 **Why this and not upgrading SqlClient.** The pin changes only the vulnerable library, to the same 10.0.14 servicing version as the other Microsoft packages. Upgrading SqlClient to 7.x would be a major-version change underneath EF Core 10.0.14, which EF wasn't released against. When EF Core ships with a fixed SqlClient, the pin can be removed.
 
 **Verified.** `dotnet list package --vulnerable --include-transitive` reports nothing for either project; the app still writes audit rows through SqlClient.
+
+---
+
+## 20a. Health endpoints (D35) ✅
+
+**Problem.** There was no health endpoint, the one operational gap in an otherwise deployable app. An orchestrator (Kubernetes, Container Apps) needs to tell "the process is up" from "the process can serve".
+
+**Decision.** Two endpoints, mapped in `Program.cs`, with the checks registered in `AddInfrastructure()`:
+
+| Endpoint | Checks | Answers |
+|---|---|---|
+| `/health/live` | none (`Predicate = _ => false`) | 200 `Healthy` while the process answers |
+| `/health/ready` | checks tagged `ready`: the claims database (MongoDB) and the audit database (SQL Server) | 200 `Healthy`; 200 `Degraded` without SQL Server; 503 `Unhealthy` without MongoDB |
+
+**Why live checks nothing.** A failing liveness probe restarts the app. If it checked the databases, every database blip would restart healthy instances, which doesn't fix the database and adds load.
+
+**Why SQL Server down is Degraded, not Unhealthy.** Audits are written in the background (D4): without SQL Server the API still answers every request until the queue fills. ASP.NET maps `Degraded` to 200, so the instance stays in rotation, and the body still says `Degraded` for monitoring. MongoDB holds the data itself, so without it the app can't serve: `Unhealthy`, 503.
+
+**Two small hand-written checks, not packages.**
+- `MongoDbHealthCheck` sends MongoDB's `ping` command through the existing `IMongoClient`. A third-party package for one command is more than it needs.
+- `AuditDatabaseHealthCheck` opens a SQL connection. The plan was Microsoft's `AddDbContextCheck`, but on the running app it failed twice: it waited 15 s, because SqlClient ignores cancellation while connecting, so the check's timeout can't stop it; and it reported `Unhealthy` when SqlClient threw, ignoring the `Degraded` we registered. The hand-written check sets its own 3 s connect timeout (on a copy of the connection string; the app's own connections are unchanged) and lets failures surface, so the health-check service reports the status we registered.
+- Both checks only report success; a failure or a timeout becomes the registered failure status in the health-check service.
+
+**Timeout.** 3 s for every check, set once on all registrations. Without it, a dead MongoDB holds the check for the driver's 30 s server-selection timeout.
+
+**Not done.** Plain-text bodies, the framework default: orchestrators only read the status code. Not in Swagger and no authentication, which is usual for probes. `UseHttpsRedirection()` also applies to them, so a probe over plain HTTP gets a redirect; behind a platform's TLS termination the probe would use HTTPS or the redirect would be configured off.
+
+**Verified.** Integration tests: both endpoints 200 `Healthy` on the test containers, and with MongoDB unreachable `live` stays 200 while `ready` is 503 `Unhealthy`. On the running app: MongoDB stopped → `ready` 503 after 3.1 s; SQL Server stopped → `ready` 200 `Degraded` after 3.0 s, and `POST /Covers` still 201; both back → 200 `Healthy`. Not covered by a test: SQL Server down, because the app migrates the audit database at startup and can't start without it.
+
+---
+
+## 20b. Paging (D37) ✅
+
+**Problem.** `GET /Claims` and `GET /Covers` returned everything, the first thing to break as the data grows. The repositories loaded every document into memory, in no defined order.
+
+**Decision.**
+- **Offset paging:** `?page=1&pageSize=10`. Default page 1, default size 10, at most 100.
+- **Envelope:** `{ "items": [...], "page": 1, "pageSize": 10, "totalCount": 123 }`, the generic `PagedResponse<T>` for both endpoints.
+- **A fixed order,** because without one MongoDB may return an item on two pages or skip it: covers by `StartDate`, claims by `Created` (the moment of the damage), each then by `Id` so ties always come out the same way. Sorting, skipping and counting run in MongoDB.
+- **Out of range is a 400,** never silently capped: `PageRequestValidator` (FluentValidation, called from the services as in D2) and the usual `ValidationProblemDetails`. The error is keyed by the query parameter's own name (`pageSize`), because model binding already created that `ModelState` entry and its keys are case-insensitive. A non-number (`page=abc`) gets the same 400 from model binding.
+- **`page` is capped at 21,474,836** (`int.MaxValue / 100`), so `(page − 1) × pageSize` can't overflow an `int` and end as a 500.
+
+**How it fits the layers.** The services get `GetPageAsync(PageRequest)`, which returns `GetPageResult<T>`: `Found` or `Invalid`, like `CreateAsync`. One generic result type for both endpoints instead of two copies; unlike the generic `Result<T>` rejected in D14, its cases still name the outcomes. The repositories' `GetAllAsync` is replaced by `GetPageAsync(skip, take)` and `CountAsync()`, since nothing else used it. The fakes sort the same way, with an ordinal string comparison like MongoDB's, so services can't tell them apart (Liskov).
+
+**Trade-offs.**
+- **A breaking change:** the response changes from an array to an object. Fine here because nothing uses the API yet.
+- **Offset paging gets slower on deep pages** (the database still walks the skipped items), and an insert between two requests can shift an item to the next page. Cursor paging (`?after=<token>`) fixes both, at the cost of more code and no page numbers.
+- **`totalCount` costs a second query** per request. Fine at this size; `hasNextPage` from fetching one extra item would be the cheaper alternative.
+
+**Rejected.** Cursor paging, for now (see above). A plain array with the total in a header: looks compatible, but a client that sends no parameters would silently get only the first 10 items. Filtering claims by cover: useful, but not asked for.
+
+**Verified.** Unit tests: the validator at every boundary; covers and claims come back in order, on the right page, with the total; an out-of-range size is `Invalid`. Integration tests on MongoDB: defaults (page 1, size 10), consecutive pages don't overlap, a 400 named after the parameter, and the order of a 100-item page from MongoDB (reversing the sort in the repository makes that test fail). On the running app: the envelope, the 400s for `pageSize=101`, `page=0` and `page=abc`, and Swagger shows `page`/`pageSize` and the `PagedResponse` schemas.
 
 ---
 

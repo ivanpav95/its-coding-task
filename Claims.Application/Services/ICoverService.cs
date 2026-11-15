@@ -4,7 +4,7 @@ namespace Claims.Application.Services;
 
 public interface ICoverService
 {
-    Task<IReadOnlyList<CoverResponse>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<GetPageResult<CoverResponse>> GetPageAsync(PageRequest request, CancellationToken cancellationToken = default);
 
     Task<CoverResponse?> GetByIdAsync(string id, CancellationToken cancellationToken = default);
 

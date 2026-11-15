@@ -4,7 +4,13 @@ namespace Claims.Application.Repositories;
 
 public interface IClaimRepository
 {
-    Task<IReadOnlyList<Claim>> GetAllAsync(CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Claims ordered by the moment of the damage, then id (ordinal), so the order is always the same and pages never
+    /// overlap or skip one.
+    /// </summary>
+    Task<IReadOnlyList<Claim>> GetPageAsync(int skip, int take, CancellationToken cancellationToken = default);
+
+    Task<int> CountAsync(CancellationToken cancellationToken = default);
 
     Task<Claim?> GetByIdAsync(string id, CancellationToken cancellationToken = default);
 

@@ -32,7 +32,7 @@ public class ErrorHandlingTests(ClaimsApiFactory factory)
 
     private sealed class FailingCoverService : ICoverService
     {
-        public Task<IReadOnlyList<CoverResponse>> GetAllAsync(CancellationToken cancellationToken = default) =>
+        public Task<GetPageResult<CoverResponse>> GetPageAsync(PageRequest request, CancellationToken cancellationToken = default) =>
             throw new InvalidOperationException(InternalDetail);
 
         public Task<CoverResponse?> GetByIdAsync(string id, CancellationToken cancellationToken = default) =>

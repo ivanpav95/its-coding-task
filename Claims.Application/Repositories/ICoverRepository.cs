@@ -4,7 +4,12 @@ namespace Claims.Application.Repositories;
 
 public interface ICoverRepository
 {
-    Task<IReadOnlyList<Cover>> GetAllAsync(CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Covers ordered by start date, then id (ordinal), so the order is always the same and pages never overlap or skip one.
+    /// </summary>
+    Task<IReadOnlyList<Cover>> GetPageAsync(int skip, int take, CancellationToken cancellationToken = default);
+
+    Task<int> CountAsync(CancellationToken cancellationToken = default);
 
     Task<Cover?> GetByIdAsync(string id, CancellationToken cancellationToken = default);
 

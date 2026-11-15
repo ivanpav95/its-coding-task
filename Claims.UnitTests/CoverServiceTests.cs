@@ -26,7 +26,36 @@ public class CoverServiceTests
     {
         var time = new FakeTimeProvider(Now);
         time.SetLocalTimeZone(TimeZoneInfo.FindSystemTimeZoneById("Europe/Oslo"));
-        _service = new CoverService(_covers, _claims, _auditer, new CreateCoverRequestValidator(time), time);
+        _service = new CoverService(_covers, _claims, _auditer, new CreateCoverRequestValidator(time), new PageRequestValidator(), time);
+    }
+
+    [Fact]
+    public async Task Covers_are_paged_in_order_of_their_start_date()
+    {
+        foreach (var startsInDays in new[] { 2, 0, 1 })
+        {
+            await _service.CreateAsync(
+                new CreateCoverRequest(Today.AddDays(startsInDays), Today.AddDays(9), CoverType.Yacht), CancellationToken);
+        }
+
+        var first = Assert.IsType<GetPageResult<CoverResponse>.Found>(
+            await _service.GetPageAsync(new PageRequest(1, 2), CancellationToken)).Page;
+        var second = Assert.IsType<GetPageResult<CoverResponse>.Found>(
+            await _service.GetPageAsync(new PageRequest(2, 2), CancellationToken)).Page;
+
+        Assert.Equal([Today, Today.AddDays(1)], first.Items.Select(cover => cover.StartDate));
+        Assert.Equal([Today.AddDays(2)], second.Items.Select(cover => cover.StartDate));
+        Assert.Equal((1, 2, 3), (first.Page, first.PageSize, first.TotalCount));
+        Assert.Equal((2, 2, 3), (second.Page, second.PageSize, second.TotalCount));
+    }
+
+    [Fact]
+    public async Task A_page_size_out_of_range_is_rejected()
+    {
+        var result = await _service.GetPageAsync(new PageRequest(1, PageRequest.MaxPageSize + 1), CancellationToken);
+
+        var invalid = Assert.IsType<GetPageResult<CoverResponse>.Invalid>(result);
+        Assert.Contains(nameof(PageRequest.PageSize), invalid.Errors.Keys);
     }
 
     [Fact]

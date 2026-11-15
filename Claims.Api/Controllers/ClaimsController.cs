@@ -10,12 +10,23 @@ namespace Claims.Api.Controllers;
 [Route("[controller]")]
 public class ClaimsController(IClaimService claimService) : ControllerBase
 {
-    /// <summary>Lists all claims.</summary>
+    /// <summary>Lists claims one page at a time, ordered by when the damage happened.</summary>
+    /// <param name="page">The page number, starting at 1.</param>
+    /// <param name="pageSize">Claims per page, 1 to 100.</param>
+    /// <param name="cancellationToken">Cancelled when the client disconnects.</param>
+    /// <response code="400">The page or the page size is out of range.</response>
     [HttpGet]
-    [ProducesResponseType<IReadOnlyList<ClaimResponse>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
-    public async Task<ActionResult<IReadOnlyList<ClaimResponse>>> GetAll(CancellationToken cancellationToken)
+    [ProducesResponseType<PagedResponse<ClaimResponse>>(StatusCodes.Status200OK, MediaTypeNames.Application.Json)]
+    [ProducesResponseType<ValidationProblemDetails>(StatusCodes.Status400BadRequest, MediaTypeNames.Application.ProblemJson)]
+    public async Task<ActionResult<PagedResponse<ClaimResponse>>> GetPage(
+        int page = 1, int pageSize = PageRequest.DefaultPageSize, CancellationToken cancellationToken = default)
     {
-        return Ok(await claimService.GetAllAsync(cancellationToken));
+        return await claimService.GetPageAsync(new PageRequest(page, pageSize), cancellationToken) switch
+        {
+            GetPageResult<ClaimResponse>.Found found => found.Page,
+            GetPageResult<ClaimResponse>.Invalid invalid => this.ValidationProblem(invalid.Errors),
+            var result => throw new InvalidOperationException($"Unhandled result {result}.")
+        };
     }
 
     /// <summary>Gets one claim.</summary>

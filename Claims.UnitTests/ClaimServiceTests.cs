@@ -39,11 +39,28 @@ public class ClaimServiceTests
             Type = CoverType.Yacht,
             Premium = 38_500m
         });
-        _service = new ClaimService(_claims, _covers, _auditer, new CreateClaimRequestValidator(new FakeTimeProvider(Now)));
+        _service = new ClaimService(_claims, _covers, _auditer, new CreateClaimRequestValidator(new FakeTimeProvider(Now)), new PageRequestValidator());
     }
 
     private static CreateClaimRequest Request(DateTimeOffset created, string coverId = CoverId) =>
         new(coverId, created, "Hull damage", ClaimType.Collision, 5_000m);
+
+    [Fact]
+    public async Task Claims_are_paged_in_order_of_when_the_damage_happened()
+    {
+        foreach (var hoursAfterStart in new[] { 48, 0, 24 })
+        {
+            await _service.CreateAsync(Request(StartsAt.AddHours(hoursAfterStart)), CancellationToken);
+        }
+
+        var result = await _service.GetPageAsync(new PageRequest(1, 10), CancellationToken);
+
+        var page = Assert.IsType<GetPageResult<ClaimResponse>.Found>(result).Page;
+        Assert.Equal(
+            [StartsAt, StartsAt.AddHours(24), StartsAt.AddHours(48)],
+            page.Items.Select(claim => claim.Created));
+        Assert.Equal(3, page.TotalCount);
+    }
 
     [Fact]
     public async Task A_valid_claim_is_saved_and_audited()

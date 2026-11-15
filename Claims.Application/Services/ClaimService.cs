@@ -10,12 +10,21 @@ public class ClaimService(
     IClaimRepository claims,
     ICoverRepository covers,
     IAuditer auditer,
-    IValidator<CreateClaimRequest> validator) : IClaimService
+    IValidator<CreateClaimRequest> validator,
+    IValidator<PageRequest> pageValidator) : IClaimService
 {
-    public async Task<IReadOnlyList<ClaimResponse>> GetAllAsync(CancellationToken cancellationToken = default)
+    public async Task<GetPageResult<ClaimResponse>> GetPageAsync(PageRequest request, CancellationToken cancellationToken = default)
     {
-        var all = await claims.GetAllAsync(cancellationToken);
-        return all.Select(ClaimResponse.From).ToList();
+        var validation = await pageValidator.ValidateAsync(request, cancellationToken);
+        if (!validation.IsValid)
+        {
+            return new GetPageResult<ClaimResponse>.Invalid(validation.ToDictionary());
+        }
+
+        var page = await claims.GetPageAsync((request.Page - 1) * request.PageSize, request.PageSize, cancellationToken);
+        var totalCount = await claims.CountAsync(cancellationToken);
+        return new GetPageResult<ClaimResponse>.Found(
+            new PagedResponse<ClaimResponse>(page.Select(ClaimResponse.From).ToList(), request.Page, request.PageSize, totalCount));
     }
 
     public async Task<ClaimResponse?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
