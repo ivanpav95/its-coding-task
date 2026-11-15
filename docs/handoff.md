@@ -47,9 +47,10 @@ Done (pushed; see `git log` and PR #1):
 Further improvements (branch `feature/further-improvements`):
 
 - Health endpoints (D35, F1): `/health/live` checks nothing, `/health/ready` checks MongoDB (503 when down) and the audit database (200 `Degraded` when down), 3 s per check.
+- Batched audit writes (D36, F2): up to 100 queued audits per `SaveChanges`, one by one if a batch fails.
 - Audit rows are added to their typed sets, not passed to EF as `object` (F3).
 
-Build: 0 warnings, no vulnerable packages (R8 fixed). Tests: 89 (75 unit, 14 integration).
+Build: 0 warnings, no vulnerable packages (R8 fixed). Tests: 93 (79 unit, 14 integration).
 
 Notes:
 
@@ -57,7 +58,7 @@ Notes:
 
 ## Plan
 
-Decisions behind every step are in `docs/findings.md` (D1–D35, D5.x) and explained in `docs/decisions.md`. Every step must keep the SOLID rules in `CLAUDE.md`. The steps were done in this order:
+Decisions behind every step are in `docs/findings.md` (D1–D36, D5.x) and explained in `docs/decisions.md`. Every step must keep the SOLID rules in `CLAUDE.md`. The steps were done in this order:
 
 **Task 1: layering.** Step numbers are kept as originally planned (other docs refer to them), but the order changed: step 5 was done before step 3 (D11). Execution order:
 

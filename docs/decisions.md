@@ -392,20 +392,23 @@ Each expected value is derived from the README by hand, never from running the c
 Channel.CreateBounded<AuditMessage>(new BoundedChannelOptions(capacity)
     { FullMode = BoundedChannelFullMode.Wait });
 
-// AuditWriter : BackgroundService (simplified; see "As built")
-await foreach (var message in channel.Reader.ReadAllAsync(CancellationToken.None))
+// AuditWriter : BackgroundService (simplified; see "As built" and D36)
+while (await channel.Reader.WaitToReadAsync(CancellationToken.None))
 {
-    await using var scope = scopeFactory.CreateAsyncScope();
-    var db = scope.ServiceProvider.GetRequiredService<AuditContext>();
-    AddTo(db, message);   // CoverAudits.Add(...) or ClaimAudits.Add(...)
-    await db.SaveChangesAsync();
+    // take what's already queued, up to the batch size (100), without waiting for more
+    while (batch.Count < batchSize && channel.Reader.TryRead(out var message)) batch.Add(message);
+
+    // one DI scope, AddTo for each (CoverAudits.Add or ClaimAudits.Add), one SaveChanges;
+    // if that fails, the same messages one by one, each in its own scope
+    await SaveAsync(batch);
+    batch.Clear();
 }
 ```
 
 **How it works.**
 - The service writes a plain message (id, verb, UTC timestamp) to the channel after the main operation succeeded. The request continues immediately.
 - The channel holds messages, never a `DbContext`.
-- The worker creates a new DI scope per write. `BackgroundService` is a singleton, and `AuditContext` is scoped and not thread-safe. Injecting it directly would be a captive dependency.
+- The worker creates a new DI scope per write (since D36: per batch). `BackgroundService` is a singleton, and `AuditContext` is scoped and not thread-safe. Injecting it directly would be a captive dependency.
 - On graceful shutdown the worker writes what's still queued before it exits.
 - If an insert fails, the worker logs it with the ids and continues. One bad write must not stop auditing.
 
@@ -423,13 +426,17 @@ await foreach (var message in channel.Reader.ReadAllAsync(CancellationToken.None
 - `Program.cs` (since D33: `AddInfrastructure()`) registers one `Channel` and its `Writer` separately, so the auditer can't read and the services know neither (S, I, D). The old `Auditer` is deleted.
 - Capacity is `Auditing:QueueCapacity` = 1000 (D21). It's a guess, and it's in config so it can change without a code change.
 - A failed insert is logged with the full message and skipped (D22). The loop keeps running; retries or a dead-letter table are the next step.
+- **Batched writes (D36, F2).** The worker takes whatever is already queued, up to `Auditing:BatchSize` = 100, and saves it with one scope and one `SaveChanges`: one transaction, and EF sends the INSERTs in a few commands (up to 42 statements each on SQL Server) instead of one round trip per audit. It never waits to fill a batch, so a single audit is written at once, as before; batches only form under load. The request path is unchanged.
+  - **Failure policy: one by one.** `SaveChanges` is all or nothing, so skipping a failed batch would lose up to 100 audits for one bad row. Instead the batch's messages are saved one by one, each in its own scope (a failed context still tracks the failed rows, so it can't be reused), and only the ones that fail again are logged and skipped, exactly as before. Cost: while SQL Server is down, one extra failed attempt (one connect timeout) per batch before the per-message attempts.
+  - **Rejected.** Skipping the whole batch (loses up to N audits at once). Retrying the batch with backoff: survives short outages, but belongs with the durable-audits next step (retries, then an outbox), and while it retries the queue fills and backpressure comes sooner.
+  - A batch size below 1 is rejected at startup; it would make the loop spin without reading.
 - **Shutdown (D23).** `StopAsync` closes the writer, then `base.StopAsync` waits for `ExecuteAsync`, which ends when the queue is empty. That wait is bounded by the host shutdown timeout (30 s by default); anything left is logged with a count. The loop and the inserts deliberately don't use the stopping token, because cancelling it would abandon the queue instead of draining it. A request that audits after the channel closed gets a logged warning, not an exception: its data is already saved.
 - **No `CancellationToken` on `IAuditer` (D25).** The audit runs after the entity was saved. Passing the request token would let a client disconnect cancel the audit of a change that did happen.
 - `HttpRequestType` stays a string to match the existing column (D24).
 - Each message is added to its typed set, `CoverAudits` or `ClaimAudits`, in the arm of the `switch` that built it. The first implementation returned `object` from `ToEntity` and called `context.Add(object)`, which threw the type away and made EF look it up at runtime (F3).
 - **The services don't know HTTP (D32).** They pass an `AuditAction` (`Created`, `Deleted`), and `ChannelAuditer` turns it into `"POST"` or `"DELETE"` with a `switch`. The verb is a detail of the template's audit table, so it belongs in Infrastructure next to that table, not in the use cases. The column and the stored values are unchanged, so no migration. Trade-off: a new action needs a new enum value and a new `switch` arm; the default arm throws, so a forgotten mapping fails in the unit tests instead of writing a wrong row.
 
-**Verified.** 5 unit tests for `ChannelAuditer` (message content and UTC `Kind`; each action maps to its verb; a closed channel doesn't throw). With the app running, a cover and a claim created and deleted give 4 rows with UTC timestamps. With the SQL Server container paused, `POST /Covers` still returned 201 in 12 ms; the worker logged `Failed to save AuditMessage { ... }`, and the next audit after unpausing was saved. The graceful-shutdown drain is not verified by hand: stopping the app from the tooling kills the process instead of sending a graceful stop.
+**Verified.** 5 unit tests for `ChannelAuditer` (message content and UTC `Kind`; each action maps to its verb; a closed channel doesn't throw). 4 unit tests for `AuditWriter` (D36), on EF Core's in-memory provider with an interceptor that records each save and can fail one row: 250 queued messages are saved as 100, 100 and 50; when one row fails, the batch is retried one by one and only that row is missing; a batch size below 1 is rejected. The queue is filled and closed before the writer starts, so the batches don't depend on timing. Switching the writer to "skip the whole batch" makes the fallback test fail. On the running app, 50 parallel `POST /Covers` gave 50 audit rows and no errors. With the app running, a cover and a claim created and deleted give 4 rows with UTC timestamps. With the SQL Server container paused, `POST /Covers` still returned 201 in 12 ms; the worker logged `Failed to save AuditMessage { ... }`, and the next audit after unpausing was saved. The graceful-shutdown drain is not verified by hand: stopping the app from the tooling kills the process instead of sending a graceful stop.
 
 ---
 

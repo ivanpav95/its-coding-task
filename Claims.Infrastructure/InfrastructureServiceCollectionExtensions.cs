@@ -48,7 +48,8 @@ public static class InfrastructureServiceCollectionExtensions
         }));
         services.AddSingleton(provider => provider.GetRequiredService<Channel<AuditMessage>>().Writer);
         services.AddSingleton<IAuditer, ChannelAuditer>();
-        services.AddHostedService<AuditWriter>();
+        var auditBatchSize = configuration.GetRequiredSection("Auditing:BatchSize").Get<int>();
+        services.AddHostedService(provider => ActivatorUtilities.CreateInstance<AuditWriter>(provider, auditBatchSize));
 
         var businessTimeZone = TimeZoneInfo.FindSystemTimeZoneById(
             configuration.GetRequiredSection("BusinessTimeZone").Value!);
