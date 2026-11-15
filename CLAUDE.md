@@ -5,7 +5,7 @@ Ivan's take-home for Insurance Technology Solutions. The task is in `docs/README
 ## Read first
 
 - `docs/handoff.md`: current state and the remaining plan, step by step.
-- `docs/findings.md`: short log of findings (R…, P…) and decisions (D…).
+- `docs/findings.md`: short log of findings (R…, P…, F…) and decisions (D…).
 - `docs/decisions.md`: the technical explanation behind each decision.
 
 ## How to work

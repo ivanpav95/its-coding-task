@@ -37,7 +37,7 @@ public class AuditWriter(
         {
             await using var scope = scopeFactory.CreateAsyncScope();
             var context = scope.ServiceProvider.GetRequiredService<AuditContext>();
-            context.Add(ToEntity(message));
+            AddTo(context, message);
             await context.SaveChangesAsync();
         }
         catch (Exception exception)
@@ -46,16 +46,24 @@ public class AuditWriter(
         }
     }
 
-    private static object ToEntity(AuditMessage message) => message.Entity switch
+    private static void AddTo(AuditContext context, AuditMessage message)
     {
-        AuditedEntity.Cover => new CoverAudit
+        switch (message.Entity)
         {
-            CoverId = message.EntityId, HttpRequestType = message.HttpRequestType, Created = message.Created
-        },
-        AuditedEntity.Claim => new ClaimAudit
-        {
-            ClaimId = message.EntityId, HttpRequestType = message.HttpRequestType, Created = message.Created
-        },
-        _ => throw new ArgumentOutOfRangeException(nameof(message), message.Entity, "Unknown audited entity.")
-    };
+            case AuditedEntity.Cover:
+                context.CoverAudits.Add(new CoverAudit
+                {
+                    CoverId = message.EntityId, HttpRequestType = message.HttpRequestType, Created = message.Created
+                });
+                break;
+            case AuditedEntity.Claim:
+                context.ClaimAudits.Add(new ClaimAudit
+                {
+                    ClaimId = message.EntityId, HttpRequestType = message.HttpRequestType, Created = message.Created
+                });
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(message), message.Entity, "Unknown audited entity.");
+        }
+    }
 }

@@ -68,6 +68,12 @@ Checked by running the app (2026-11-06): step 1 (folder move) builds, starts wit
 - Yacht, end date exclusive as in the template: 10 days → template 39,462.50, correct 13,750.00; 100 days → 298,375.00 vs 132,687.50; 200 days → 529,375.00 vs 262,487.50. The 39,462.50 was confirmed against the running `compute` endpoint.
 - No rounding needed: every day rate has at most 2 decimals (Yacht 1375 / 1306.25 / 1265; PassengerShip 1500 / 1470 / 1455; Tanker 1875 / 1837.50 / 1818.75; others 1625 / 1592.50 / 1576.25), so totals are exact in `decimal`.
 
+## Further improvements
+
+| #  | Finding | Change | Status |
+| -- | ------- | ------ | ------ |
+| F3 | The audit writer passed each row to EF as `object` (`ToEntity` + `context.Add(object)`), so EF looked the type up at runtime | Each row is added to its typed set, `CoverAudits` or `ClaimAudits`, in the arm of the `switch` that builds it | ✅ |
+
 ## Decisions
 
 | #    | Question                                                          | Decision & why                                                                                                                                                                                                                                                                                                                                                                                              | Status                      |
