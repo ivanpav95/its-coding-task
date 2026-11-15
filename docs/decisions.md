@@ -544,6 +544,34 @@ var sql = new SqlConnectionStringBuilder(sqlContainer.GetConnectionString())
 
 ---
 
+## 20a. Health endpoints (D35) ✅
+
+**Problem.** There was no health endpoint, the one operational gap in an otherwise deployable app. An orchestrator (Kubernetes, Container Apps) needs to tell "the process is up" from "the process can serve".
+
+**Decision.** Two endpoints, mapped in `Program.cs`, with the checks registered in `AddInfrastructure()`:
+
+| Endpoint | Checks | Answers |
+|---|---|---|
+| `/health/live` | none (`Predicate = _ => false`) | 200 `Healthy` while the process answers |
+| `/health/ready` | checks tagged `ready`: the claims database (MongoDB) and the audit database (SQL Server) | 200 `Healthy`; 200 `Degraded` without SQL Server; 503 `Unhealthy` without MongoDB |
+
+**Why live checks nothing.** A failing liveness probe restarts the app. If it checked the databases, every database blip would restart healthy instances, which doesn't fix the database and adds load.
+
+**Why SQL Server down is Degraded, not Unhealthy.** Audits are written in the background (D4): without SQL Server the API still answers every request until the queue fills. ASP.NET maps `Degraded` to 200, so the instance stays in rotation, and the body still says `Degraded` for monitoring. MongoDB holds the data itself, so without it the app can't serve: `Unhealthy`, 503.
+
+**Two small hand-written checks, not packages.**
+- `MongoDbHealthCheck` sends MongoDB's `ping` command through the existing `IMongoClient`. A third-party package for one command is more than it needs.
+- `AuditDatabaseHealthCheck` opens a SQL connection. The plan was Microsoft's `AddDbContextCheck`, but on the running app it failed twice: it waited 15 s, because SqlClient ignores cancellation while connecting, so the check's timeout can't stop it; and it reported `Unhealthy` when SqlClient threw, ignoring the `Degraded` we registered. The hand-written check sets its own 3 s connect timeout (on a copy of the connection string; the app's own connections are unchanged) and lets failures surface, so the health-check service reports the status we registered.
+- Both checks only report success; a failure or a timeout becomes the registered failure status in the health-check service.
+
+**Timeout.** 3 s for every check, set once on all registrations. Without it, a dead MongoDB holds the check for the driver's 30 s server-selection timeout.
+
+**Not done.** Plain-text bodies, the framework default: orchestrators only read the status code. Not in Swagger and no authentication, which is usual for probes. `UseHttpsRedirection()` also applies to them, so a probe over plain HTTP gets a redirect; behind a platform's TLS termination the probe would use HTTPS or the redirect would be configured off.
+
+**Verified.** Integration tests: both endpoints 200 `Healthy` on the test containers, and with MongoDB unreachable `live` stays 200 while `ready` is 503 `Unhealthy`. On the running app: MongoDB stopped → `ready` 503 after 3.1 s; SQL Server stopped → `ready` 200 `Degraded` after 3.0 s, and `POST /Covers` still 201; both back → 200 `Healthy`. Not covered by a test: SQL Server down, because the app migrates the audit database at startup and can't start without it.
+
+---
+
 ## 21. Tests (Task 4) ✅
 
 **Two projects (D15, 4a).** `Claims.UnitTests` runs in about a second with no Docker; `Claims.IntegrationTests` starts the real app with its SQL Server and MongoDB containers. The names say what each one needs.

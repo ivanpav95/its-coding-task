@@ -15,7 +15,7 @@ Read this file and `docs/findings.md` before doing anything.
 
 Working rules, code rules and environment notes are in `CLAUDE.md` at the repo root (loaded automatically by Claude Code).
 
-- Branch: `feature/claims-refactor`. Pull request #1 into `main` is open, with a written explanation.
+- PR #1 (`feature/claims-refactor`, Tasks 1–5) is merged into `main`. Further improvements (F… in `docs/findings.md`) are on `feature/further-improvements`.
 - Local databases: `docker compose up -d --wait`; integration tests start their own containers (D29). The first pull of the SQL Server image (~1.5 GB) is slow.
 
 ## Current state
@@ -44,7 +44,12 @@ Done (pushed; see `git log` and PR #1):
 - One project per layer (D33, replaces D1): `Claims.Domain`, `Claims.Application`, `Claims.Infrastructure`, `Claims.Api` (was `Claims`), all at the solution root. `AddApplication()`/`AddInfrastructure()` register each layer; `Program.cs` only composes. 4 architecture tests in `Claims.UnitTests/Architecture`. R5's variable is now `ASPNETCORE_TEST_CONTENTROOT_CLAIMS_API`.
 - Global exception handler (D34): `AddProblemDetails()` + `UseExceptionHandler()`, in every environment. Unexpected errors are a logged 500 `application/problem+json` without internal details.
 
-Build: 0 warnings, no vulnerable packages (R8 fixed). Tests: 86 (75 unit, 11 integration).
+Further improvements (branch `feature/further-improvements`):
+
+- Health endpoints (D35, F1): `/health/live` checks nothing, `/health/ready` checks MongoDB (503 when down) and the audit database (200 `Degraded` when down), 3 s per check.
+- Audit rows are added to their typed sets, not passed to EF as `object` (F3).
+
+Build: 0 warnings, no vulnerable packages (R8 fixed). Tests: 89 (75 unit, 14 integration).
 
 Notes:
 
@@ -52,7 +57,7 @@ Notes:
 
 ## Plan
 
-Decisions behind every step are in `docs/findings.md` (D1–D34, D5.x) and explained in `docs/decisions.md`. Every step must keep the SOLID rules in `CLAUDE.md`. The steps were done in this order:
+Decisions behind every step are in `docs/findings.md` (D1–D35, D5.x) and explained in `docs/decisions.md`. Every step must keep the SOLID rules in `CLAUDE.md`. The steps were done in this order:
 
 **Task 1: layering.** Step numbers are kept as originally planned (other docs refer to them), but the order changed: step 5 was done before step 3 (D11). Execution order:
 
